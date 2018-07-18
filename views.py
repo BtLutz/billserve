@@ -156,6 +156,13 @@ def update(request):
         except KeyError as e:
             raise KeyError('Error parsing {field} from {url}: {e}'.format(field,field, url=url, e=e))
 
+    def format_date(s, f, t, url):
+        try:
+            return datetime.datetime.strptime(s, f).astimezone(utc)
+        except ValueError:
+            raise ValueError(('Error parsing date {t} from {url}. I received the string {s}.'
+                              'Most likely I encountered an unexpected date format').format(t=t, url=url, s=s))
+
     def populate_bill(url, b=None, last_modified_string=None):
         # Coerce the last_modified_string into a Date object to see if we actually need to process this update.
         logging.info('Populating bill at {url}'.format(url=url))
@@ -205,7 +212,7 @@ def update(request):
         b.introduction_date = introduction_date
         b.save()
 
-        logging.info('Saved new bill {number} at url {url}'.format(number=b.bill_number, url=b.url))
+        logging.info('Saved new bill {number} at url {url}.'.format(number=b.bill_number, url=b.url))
 
         # Parse related object data from the converted XML
         sponsors = parse_and_coerce_to_list('sponsors', bill_data, url)
@@ -214,29 +221,11 @@ def update(request):
         actions = parse_and_coerce_to_list('actions', bill_data, url)
 
         # These are special case fields that are buried further in the XML doc than the other related models.
-        # I need further exception handling in case I run into a KeyError before calling parse_and_coerce.
         bill_summaries = parse_and_coerce_to_list_2(['summaries', 'billSummaries'], bill_data, url)
         committees = parse_and_coerce_to_list_2(['committees', 'billCommittees'], bill_data, url)
         policy_area = parse_without_coercion_2(['subjects', 'billSubjects', 'policyArea', 'name'])
         legislative_subjects = parse_and_coerce_to_list_2(['subjects', 'billSubjects', 'legislativeSubjects'],
                                                           bill_data, url)
-        # try:
-        #     committees = parse_and_coerce_to_list('billCommittees', bill_data['committees'], url)
-        # except KeyError:
-        #     raise KeyError('Error parsing billCommittees from {url} on key \'committees\'. Is it present?'
-        #                    .format(url=url))
-        # try:
-        #     policy_area = bill_data['subjects']['billSubjects']['policyArea']['name']
-        # except KeyError as e:
-        #     logging.warning(('KeyError on field {e} for PolicyArea on {url}. Most likely the field is missing from'
-        #                      'this particular bill').format(e=e, url=url))
-        #     policy_area = None
-        # try:
-        #     legislative_subjects = parse_and_coerce_to_list('legislativeSubjects',
-        #                                                     bill_data['subjects']['billSubjects'],
-        #                                                     url)
-        # except KeyError as e:
-        #     raise KeyError('Error parsing billSubjects from {url} on key: {e}'.format(url=url, e=e))
 
         for sponsor in sponsors:
             try:
@@ -364,6 +353,7 @@ def update(request):
                                          action_type=action_type, action_date=action_date):
                 Action.objects.create(committee=committee, bill=b, action_text=action_text,
                                       action_type=action_type, action_date=action_date)
+
         for related_bill in related_bills:
             try:
                 related_bill_type = related_bill['type']
@@ -391,10 +381,18 @@ def update(request):
             # TODO: Legislative Subjects
             pass
 
-        # TODO: Policy Area
+        if policy_area:
+            # TODO: Policy Area
+            pass
 
-        # TODO: Bill Summaries
-        # for bill_summary in bill_summaries:
+        for bill_summary in bill_summaries:
+            try:
+                bill_summary_name = bill_summary['name']
+                bill_summary_action_date_string = bill_summary['lastSummaryUpdateDate']
+                bill_summary_text = bill_summary['text']
+                bill_summary_action_description = bill_summary['actionDesc']
+            except KeyError as e:
+                raise KeyError('Error parsing field from bill_summary at {url}: {e}'.format(url=url, e=e))
 
 
         # TODO: Originating Bodies

@@ -104,14 +104,21 @@ class Bill(models.Model):
                                          related_name='co_sponsored_bills')
     policy_areas = models.ManyToManyField('PolicyArea')
     legislative_subjects = models.ManyToManyField('LegislativeSubject')
-    originating_body = models.ForeignKey('LegislativeBody', on_delete=models.SET_NULL, null=True)
     related_bills = models.ManyToManyField('Bill')
+
+    # I'm leaving off the latest_bill_summary field because it's unnecessary.
+    # To get the most recent summary, query and then sort by date and only return the first to client.
+    originating_body = models.ForeignKey('LegislativeBody', on_delete=models.SET_NULL, null=True)
+
     title = models.TextField(verbose_name='title of bill', null=True)
-    summary = models.TextField(verbose_name='summary of bill', null=True)
+
     introduction_date = models.DateTimeField(verbose_name='date bill was created', null=True)
     last_modified = models.DateTimeField(null=True)
+
     bill_number = models.IntegerField(verbose_name='bill number (relative to congressional session)', null=True)
+
     type = models.CharField(max_length=10, verbose_name='type of bill (S, HR, HRJRES, etc.)', null=True)
+
     cbo_cost_estimate = models.URLField(null=True)  # If CBO cost estimate in bill_status, then append it to the related bill
     url = models.URLField()
     # NOTE: I'm adding in related_bills as a field for right now. This may be useful for later for if a user views
@@ -131,9 +138,8 @@ class Bill(models.Model):
 
 class BillSummary(models.Model):
     text = models.TextField()
-    originating_chamber = models.CharField(max_length=10)
-    original_publishing_date = models.DateField()
-    update_date = models.DateField()
+    action_description = models.TextField()
+    action_date = models.DateField()
     bill = models.ForeignKey('Bill', on_delete=models.CASCADE, related_name='bill_summaries')
 
 
