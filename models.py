@@ -23,7 +23,7 @@ class District(models.Model):
     state = models.ForeignKey('State', on_delete=models.CASCADE)
 
     def __str__(self):
-        return 'District No. {number}: {name}'
+        return '{state}-{number}'.format(state=self.state.abbreviation, number=self.number)
 
 
 # TODO: Have two subclasses of Legislator, Senator and Representative. Representatives have the district field as well.
@@ -74,8 +74,7 @@ class Legislator(models.Model):
 class Senator(Legislator):
 
     def __str__(self):
-        return 'Sen. {first_name} {last_name} [{party}-{state}]'.format(title=self.title,
-                                                                        first_name=self.first_name,
+        return 'Sen. {first_name} {last_name} [{party}-{state}]'.format(first_name=self.first_name,
                                                                         last_name=self.last_name,
                                                                         party=self.party.abbreviation,
                                                                         state=self.state.abbreviation)
@@ -85,12 +84,10 @@ class Representative(Legislator):
     district = models.ForeignKey('District', on_delete=models.SET_NULL, null=True)
 
     def __str__(self):
-        return 'Rep. {first_name} {last_name} [{party}-{state}-{district}]'.format(title=self.title,
-                                                                                   first_name=self.first_name,
-                                                                                   last_Name=self.last_name,
-                                                                                   party=self.party.abbreviation,
-                                                                                   state=self.state.abbreviation,
-                                                                                   district=self.district)
+        return 'Rep. {first_name} {last_name} [{party}-{district}]'.format(first_name=self.first_name,
+                                                                           last_name=self.last_name,
+                                                                           party=self.party.abbreviation,
+                                                                           district=self.district)
 
 
 class Bill(models.Model):
