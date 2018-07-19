@@ -198,6 +198,7 @@ def update(request):
         bill_type = parse_without_coercion('billType', bill_data, url)
         bill_number = parse_without_coercion('billNumber', bill_data, url)
         bill_title = parse_without_coercion('title', bill_data, url)
+        bill_congress = parse_without_coercion('congress', bill_data, url)
 
         introduction_date_string = parse_without_coercion('introducedDate', bill_data, url)
         introduction_date = format_date(introduction_date_string, '%Y-%m-%d', 'introducedDate', url)
@@ -206,6 +207,7 @@ def update(request):
         b.type = bill_type
         b.bill_number = bill_number
         b.title = bill_title
+        b.congress = bill_congress
         b.introduction_date = introduction_date
         b.save()
 
@@ -373,21 +375,31 @@ def update(request):
             # TODO: Legislative Subjects
             pass
 
-        if policy_area:
-            # TODO: Policy Area
-            pass
+        b.policy_area = PolicyArea.objects.get_or_create(name=policy_area)[0] if policy_area else None
 
         for bill_summary in bill_summaries:
             try:
                 bill_summary_name = bill_summary['name']
-                bill_summary_action_date_string = bill_summary['lastSummaryUpdateDate']
+                bill_summary_action_date_string = bill_summary['actionDate']
                 bill_summary_text = bill_summary['text']
                 bill_summary_action_description = bill_summary['actionDesc']
             except KeyError as e:
                 raise KeyError('Error parsing field from bill_summary at {url}: {e}'.format(url=url, e=e))
-            # TODO: Finish BillSummary creation
 
-        # TODO: Originating Bodies
+            action_date = format_date(bill_summary_action_date_string, '%Y-%m-%d', 'actionDate', url)
+
+            if not BillSummary.objects.filter(name=bill_summary_name, bill=b, action_date=action_date).exists():
+                BillSummary.objects.create(name=bill_summary_name, text=bill_summary_text,
+                                           action_description=bill_summary_action_description,
+                                           action_date=action_date, bill=b)
+
+        # Adding originating body to the bill. This is relevant for any queries that might want to look up all bills
+        # currently on the floor of the senate.
+        if bill_type in {'S', 'SJRES', 'SRES', 'SCONRES'}:
+            b.originating_body = LegislativeBody.objects.get_or_create(name='Senate', abbreviation='S')[0]
+        elif bill_type in {'HR', 'HRES', 'HJRES', 'HCONRES'}:
+            b.originating_body = LegislativeBody.objects.get_or_create(name='House of Representatives',
+                                                                       abbreviation='HR')[0]
         return b
 
     # Setup and request for main bill directory. The headers are necessary for a request to the main directory,

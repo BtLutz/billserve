@@ -26,13 +26,6 @@ class District(models.Model):
         return '{state}-{number}'.format(state=self.state.abbreviation, number=self.number)
 
 
-# TODO: Have two subclasses of Legislator, Senator and Representative. Representatives have the district field as well.
-# TODO: Just place the title field in the Legislator object. When I subclass into Representative and Senator, set the
-# default value as 'Rep' and 'Sen', respectively.
-# Question: If I subclass Representative and Senator on Legislator:
-# 1. Does it matter if I don't add any custom fields to Senator?
-# 2. If I leave my ForeignKey relations in sponsorship and CoSponsorship pointing at Legislator objects, will
-#    that be OK if they actually point towards the subclassed Representative and Senator instances?
 class Legislator(models.Model):
     lis_id = models.IntegerField()
     party = models.ForeignKey('Party',
@@ -90,6 +83,10 @@ class Representative(Legislator):
                                                                            district=self.district)
 
 
+# A big deal in the near future will be adding a boolean field to denote if a bill has already been voted on.
+# This will entail some logic in the code to decide whether or not a bill has been voted on. Most likely
+# if I find any content in the recordedVotes field I can mark the boolean (has_been_voted_on) as True and then save
+# the corresponding votes. For right now I'm just going to focus on relaying the bill data to the user in a clean format
 class Bill(models.Model):
     # TODO: Add congress field to the Bill model.
     # The congress field is essential for rebuilding URLs (In case I don't have one) to the bill, and it's important
@@ -102,7 +99,7 @@ class Bill(models.Model):
                                          through='CoSponsorship',
                                          verbose_name='co-sponsors of the given bill',
                                          related_name='co_sponsored_bills')
-    policy_areas = models.ManyToManyField('PolicyArea')
+    policy_area = models.ForeignKey('PolicyArea', on_delete=models.SET_NULL, null=True)
     legislative_subjects = models.ManyToManyField('LegislativeSubject')
     related_bills = models.ManyToManyField('Bill')
 
@@ -116,6 +113,7 @@ class Bill(models.Model):
     last_modified = models.DateTimeField(null=True)
 
     bill_number = models.IntegerField(verbose_name='bill number (relative to congressional session)', null=True)
+    congress = models.IntegerField(null=True)
 
     type = models.CharField(max_length=10, verbose_name='type of bill (S, HR, HRJRES, etc.)', null=True)
 
@@ -137,19 +135,15 @@ class Bill(models.Model):
 
 
 class BillSummary(models.Model):
+    name = models.CharField(max_length=50)
     text = models.TextField()
     action_description = models.TextField()
     action_date = models.DateField()
     bill = models.ForeignKey('Bill', on_delete=models.CASCADE, related_name='bill_summaries')
 
-
-class BillStatus(models.Model):
-    bill = models.OneToOneField('Bill', on_delete=models.CASCADE, verbose_name='related bill for bill status')
-    date_updated = models.DateTimeField()
-    url = models.URLField()
-
     def __str__(self):
-        return self.bill
+        return '{bill}: {name} ({action_date})'.format(bill=self.bill.bill_number, name=self.name,
+                                                       action_date=self.action_date)
 
 
 class Committee(models.Model):
