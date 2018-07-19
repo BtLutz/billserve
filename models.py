@@ -102,6 +102,7 @@ class Bill(models.Model):
     policy_area = models.ForeignKey('PolicyArea', on_delete=models.SET_NULL, null=True)
     legislative_subjects = models.ManyToManyField('LegislativeSubject')
     related_bills = models.ManyToManyField('Bill')
+    committees = models.ManyToManyField('Committee')
 
     # I'm leaving off the latest_bill_summary field because it's unnecessary.
     # To get the most recent summary, query and then sort by date and only return the first to client.
@@ -148,6 +149,9 @@ class BillSummary(models.Model):
 
 class Committee(models.Model):
     name = models.CharField(max_length=100)
+    type = models.CharField(max_length=50, null=True)
+    system_code = models.CharField(max_length=50)
+    chamber = models.ForeignKey('LegislativeBody', on_delete=models.CASCADE, null=True)
 
     def __str__(self):
         return self.name

@@ -167,6 +167,19 @@ def update(request):
                               'Most likely I encountered an unexpected date format').format(date_name=date_name,
                                                                                             url=url, string=string))
 
+    def get_legislator(lis_id, party, state, first_name, last_name, district_number=None):
+        if not district_number:
+            legislative_body = LegislativeBody.objects.get_or_create(name='Senate', abbreviation='S')[0]
+            return Senator.objects.get_or_create(lis_id=lis_id, party=party, state=state, first_name=first_name,
+                                                 last_name=last_name, legislative_body=legislative_body)[0]
+        else:
+            legislative_body = LegislativeBody.objects.get_or_create(name='House of Representatives',
+                                                                     abbreviation='S')[0]
+            district = District.objects.get_or_create(number=district_number, state=state)[0]
+            return Representative.objects.get_or_create(lis_id=lis_id, party=party, state=state, first_name=first_name,
+                                                        last_name=last_name, legislative_body=legislative_body,
+                                                        district=district)[0]
+
     def populate_bill(url, b=None, last_modified_string=None):
         # Coerce the last_modified_string into a Date object to see if we actually need to process this update.
         logging.info('Populating bill at {url}'.format(url=url))
@@ -241,9 +254,8 @@ def update(request):
 
             try:
                 district_number = sponsor['district']
-                is_senator = False
             except KeyError:
-                is_senator = True
+                district_number = None
 
             logging.info('Done parsing info for sponsor {full_name}. Moving to gather related objects.'
                          .format(full_name=full_name))
@@ -251,22 +263,7 @@ def update(request):
             state = find_state(state_abbreviation)
             party = find_party(party_abbreviation)
 
-            # TODO: Consolidate this into a helper method.
-            # It's the exact same code in co_sponsors, so why have it twice?
-            if is_senator:
-                legislative_body = LegislativeBody.objects.get_or_create(name='Senate', abbreviation='S',
-                                                                         title='Sen')[0]
-                legislator = Senator.objects.get_or_create(lis_id=lis_id, party=party, state=state,
-                                                           first_name=first_name, last_name=last_name,
-                                                           legislative_body=legislative_body)[0]
-            else:
-                legislative_body = LegislativeBody.objects.get_or_create(name='House of Representatives',
-                                                                         abbreviation='HR', title='Rep')[0]
-                district = District.objects.get_or_create(number=district_number, state=state)[0]
-                legislator = Representative.objects.get_or_create(lis_id=lis_id, party=party, state=state,
-                                                                  first_name=first_name, last_name=last_name,
-                                                                  legislative_body=legislative_body,
-                                                                  district=district)[0]
+            legislator = get_legislator(lis_id, party, state, first_name, last_name, district_number)
 
             if not Sponsorship.objects.filter(legislator=legislator, bill=b).exists():
                 Sponsorship.objects.create(legislator=legislator, bill=b)
@@ -287,9 +284,8 @@ def update(request):
 
             try:
                 district_number = co_sponsor['district']
-                is_senator = False
             except KeyError:
-                is_senator = True
+                district_number = None
             logging.info('Done parsing info for cosponsor {full_name}. Moving to gather related objects.'
                          .format(full_name=full_name))
 
@@ -307,20 +303,7 @@ def update(request):
                                  .format(url=url,string=is_original_co_sponsor_string))
             is_original_co_sponsor = True if is_original_co_sponsor_string == 'True' else False
 
-            if is_senator:
-                legislative_body = LegislativeBody.objects.get_or_create(name='Senate', abbreviation='S',
-                                                                         title='Sen')[0]
-                legislator = Senator.objects.get_or_create(lis_id=lis_id, party=party, state=state,
-                                                           first_name=first_name, last_name=last_name,
-                                                           legislative_body=legislative_body)[0]
-            else:
-                legislative_body = LegislativeBody.objects.get_or_create(name='House of Representatives',
-                                                                         abbreviation='HR', title='Rep')[0]
-                district = District.objects.get_or_create(number=district_number, state=state)[0]
-                legislator = Representative.objects.get_or_create(lis_id=lis_id, party=party, state=state,
-                                                                  first_name=first_name, last_name=last_name,
-                                                                  legislative_body=legislative_body,
-                                                                  district=district)[0]
+            legislator = get_legislator(lis_id, party, state, first_name, last_name, district_number)
 
             if not CoSponsorship.objects.filter(legislator=legislator, bill=b,
                                                 co_sponsorship_date=co_sponsorship_date,
@@ -333,7 +316,6 @@ def update(request):
             try:
                 action_date_string = action['actionDate']
                 committee_name_string = parse_without_coercion_2(['committee', 'name'], action, url)
-                # TODO: Add system_code as a field to the Committee model
                 committee_system_code = parse_without_coercion_2(['committee', 'systemCode'], action, url)
                 action_text = action['text']
                 action_type = action['type']
@@ -341,8 +323,10 @@ def update(request):
                 raise KeyError('Error parsing field from action at {url}: {e}'.format(url=url, e=e))
             action_date = format_date(action_date_string, '%Y-%m-%d', 'actionDate', url)
 
-            committee = Committee.objects.get_or_create(name=committee_name_string)[0] \
+            committee = Committee.objects.get_or_create(
+                name=committee_name_string, system_code=committee_system_code)[0] \
                 if committee_name_string else None
+
             if not Action.objects.filter(committee=committee, bill=b, action_text=action_text,
                                          action_type=action_type, action_date=action_date):
                 Action.objects.create(committee=committee, bill=b, action_text=action_text,
@@ -368,12 +352,26 @@ def update(request):
             related_bill.related_bills.add(b)
 
         for committee in committees:
-            # TODO: Committees
-            pass
+            try:
+                committee_name = committee['name']
+                committee_type = committee['type']
+                committee_chamber_string = committee['chamber']
+                committee_system_code = committee['systemCode']
+            except KeyError as e:
+                raise KeyError('Error parsing field from committee at {url}: {e}'.format(url=url, e=e))
+
+            chamber = LegislativeBody.objects.get_or_create(name=committee_chamber_string)[0]
+
+            defaults = {'chamber': chamber, 'type': committee_type}
+            committee = Committee.objects.update_or_create(defaults=defaults, system_code=committee_system_code)[0]
+            b.committees.add(committee)
 
         for legislative_subject in legislative_subjects:
-            # TODO: Legislative Subjects
-            pass
+            try:
+                legislative_subject_name = legislative_subject['name']
+            except KeyError as e:
+                raise KeyError('Error parsing name from legislativeSubject at {url}'.format(url=url))
+            b.legislative_subjects.add(LegislativeSubject.objects.get_or_create(name=legislative_subject_name)[0])
 
         b.policy_area = PolicyArea.objects.get_or_create(name=policy_area)[0] if policy_area else None
 
