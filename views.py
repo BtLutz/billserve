@@ -107,7 +107,8 @@ def update(request):
         return State.objects.get_or_create(abbreviation=sa, name=state_name)[0]
 
     def parse_without_coercion_2(fields, data, url):
-        assert fields, data
+        assert fields and data, ('Either fields or data not present in call to parse_without_coercion for {url}'
+                                 'fields: {fields} data: {data}'.format(fields=fields, data=data, url=url))
         raw = data
         try:
             for field in fields:
@@ -116,13 +117,15 @@ def update(request):
             raise KeyError('Error parsing field from {ur}: {e}. Are you sure it\s there? all fields: {fields}'
                            .format(url=url, e=e, fields=fields))
         except TypeError as e:
-            logging.warning(('I encountered an empty dictionary entry for the field {e} in {url}. '
-                             'Most likely it\'s just not a listed attribute for this bill.').format(e=e, url=url))
+            logging.warning(('I encountered an empty dictionary entry for a field in {fields} in {url}. '
+                             'Most likely it\'s just not a listed attribute for this bill.').format(fields=fields,
+                                                                                                    url=url))
             return None
         return raw
 
     def parse_and_coerce_to_list_2(fields, data, url):
-        assert fields, data
+        assert fields and data, ('Either fields or data not present in call to parse_and_coerce_to_list for {url}. '
+                                 'fields: {fields}, data: {data}'.format(fields=fields, data=data, url=url))
         raw = data
         try:
             for field in fields:
@@ -132,8 +135,8 @@ def update(request):
             raise KeyError('Error parsing field from {url}: {e}. All fields: {fields}'.format(url=url, e=e,
                                                                                               fields=fields))
         except TypeError as e:
-            logging.warning(('I encountered an empty dictionary entry for the field {e} in {url}. '
-            'Most likely it\'s just not a listed attribute for this bill.').format(e=e, url=url))
+            logging.warning(('I encountered an empty dictionary entry for a field in {fields} in {url}. '
+            'Most likely it\'s just not a listed attribute for this bill.').format(fields=fields, url=url))
             return []
         return raw if isinstance(raw, [].__class__) else [raw]
 
@@ -156,24 +159,19 @@ def update(request):
         except KeyError as e:
             raise KeyError('Error parsing {field} from {url}: {e}'.format(field,field, url=url, e=e))
 
-    def format_date(s, f, t, url):
+    def format_date(string, date_format, date_name, url):
         try:
-            return datetime.datetime.strptime(s, f).astimezone(utc)
+            return datetime.datetime.strptime(string, date_format).astimezone(utc)
         except ValueError:
-            raise ValueError(('Error parsing date {t} from {url}. I received the string {s}.'
-                              'Most likely I encountered an unexpected date format').format(t=t, url=url, s=s))
+            raise ValueError(('Error parsing date {date_name} from {url}. I received the string {string}.'
+                              'Most likely I encountered an unexpected date format').format(date_name=date_name,
+                                                                                            url=url, string=string))
 
     def populate_bill(url, b=None, last_modified_string=None):
         # Coerce the last_modified_string into a Date object to see if we actually need to process this update.
         logging.info('Populating bill at {url}'.format(url=url))
-        if last_modified_string:
-            try:
-                last_modified_date = datetime.datetime.strptime(last_modified_string, '%d-%b-%Y %H:%M').astimezone(utc)
-            except ValueError as e:
-                raise ValueError('Invalid date format encountered when stripping {last_modified_string} from {url}: {e}'
-                                 .format(last_modified_string=last_modified_string, url=url, e=e))
-        else:
-            last_modified_date = None
+        last_modified_date = format_date(last_modified_string, '%d-%b-%Y %H:%M', 'lastModifiedDate', url) \
+            if last_modified_string else None
 
         # If we don't have a bill yet, look to see if one exists at this url. If it does and doesn't need updating,
         # just return it.
@@ -181,7 +179,7 @@ def update(request):
             b, created = Bill.objects.get_or_create(url=url)
             if not created and b.last_modified == last_modified_date:
                 logging.info('Found existing bill {number} to return'.format(number=b.bill_number))
-                return b
+                # return b
 
         # In this case, the bill either didn't already exist or it needs updating. We need to request
         # the bill's URL and update all fields and related models. In this case the method runs to completion.
@@ -196,16 +194,15 @@ def update(request):
         except KeyError as e:
             raise ValueError('Improperly formatted XML was found when parsing {url}'.format(url=url))
 
-        # Update the Bill object itself with new data
+        # Parse the data we'll use to update our Bill object
         bill_type = parse_without_coercion('billType', bill_data, url)
         bill_number = parse_without_coercion('billNumber', bill_data, url)
         bill_title = parse_without_coercion('title', bill_data, url)
-        introduction_date_string = parse_without_coercion('introducedDate', bill_data, url)
-        try:
-            introduction_date = datetime.datetime.strptime(introduction_date_string, '%Y-%m-%d').astimezone(utc)
-        except ValueError as e:
-            raise ValueError('Error converting bill introducedDate on {url}: {e}'.format(url=url, e=e))
 
+        introduction_date_string = parse_without_coercion('introducedDate', bill_data, url)
+        introduction_date = format_date(introduction_date_string, '%Y-%m-%d', 'introducedDate', url)
+
+        # Update the Bill objects with the data we parsed
         b.type = bill_type
         b.bill_number = bill_number
         b.title = bill_title
@@ -223,7 +220,7 @@ def update(request):
         # These are special case fields that are buried further in the XML doc than the other related models.
         bill_summaries = parse_and_coerce_to_list_2(['summaries', 'billSummaries'], bill_data, url)
         committees = parse_and_coerce_to_list_2(['committees', 'billCommittees'], bill_data, url)
-        policy_area = parse_without_coercion_2(['subjects', 'billSubjects', 'policyArea', 'name'])
+        policy_area = parse_without_coercion_2(['subjects', 'billSubjects', 'policyArea', 'name'], bill_data, url)
         legislative_subjects = parse_and_coerce_to_list_2(['subjects', 'billSubjects', 'legislativeSubjects'],
                                                           bill_data, url)
 
@@ -252,6 +249,8 @@ def update(request):
             state = find_state(state_abbreviation)
             party = find_party(party_abbreviation)
 
+            # TODO: Consolidate this into a helper method.
+            # It's the exact same code in co_sponsors, so why have it twice?
             if is_senator:
                 legislative_body = LegislativeBody.objects.get_or_create(name='Senate', abbreviation='S',
                                                                          title='Sen')[0]
@@ -299,11 +298,7 @@ def update(request):
                 raise KeyError('Error parsing state from cosponsor {full_name} on {url}'.format(full_name=full_name,
                                                                                                 url=url))
             party = find_party(party_string)
-
-            try:
-                co_sponsorship_date = datetime.datetime.strptime(co_sponsorship_date_string, '%Y-%m-%d').date()
-            except ValueError as e:
-                raise ValueError('Error parsing co_sponsorship_date at {url}: {e}'.format(url=url, e=e))
+            co_sponsorship_date = format_date(co_sponsorship_date_string, '%Y-%m-%d', 'cosponsorshipDate', url)
 
             if is_original_co_sponsor_string not in {'True', 'False'}:
                 raise ValueError('Unexpected string found for isOriginalCosponsor in {url}: {string}'
@@ -335,20 +330,17 @@ def update(request):
         for action in actions:
             try:
                 action_date_string = action['actionDate']
-                committee_string = action['committee']['name']
+                committee_name_string = parse_without_coercion_2(['committee', 'name'], action, url)
                 # TODO: Add system_code as a field to the Committee model
-                committee_system_code = action['committee']['systemCode']
+                committee_system_code = parse_without_coercion_2(['committee', 'systemCode'], action, url)
                 action_text = action['text']
                 action_type = action['type']
             except KeyError as e:
                 raise KeyError('Error parsing field from action at {url}: {e}'.format(url=url, e=e))
-            try:
-                action_date = datetime.datetime.strptime(action_date_string, '%Y-%m-%d')
-            except ValueError as e:
-                raise ValueError(('Error parsing action_date from action in {url}. Most likely the strptime() function'
-                                  ' encountered a different format than expected: {e}').format(url=url, e=e))
+            action_date = format_date(action_date_string, '%Y-%m-%d', 'actionDate', url)
 
-            committee = Committee.objects.get_or_create(name=committee_string)[0] if committee_string else None
+            committee = Committee.objects.get_or_create(name=committee_name_string)[0] \
+                if committee_name_string else None
             if not Action.objects.filter(committee=committee, bill=b, action_text=action_text,
                                          action_type=action_type, action_date=action_date):
                 Action.objects.create(committee=committee, bill=b, action_text=action_text,
@@ -393,7 +385,7 @@ def update(request):
                 bill_summary_action_description = bill_summary['actionDesc']
             except KeyError as e:
                 raise KeyError('Error parsing field from bill_summary at {url}: {e}'.format(url=url, e=e))
-
+            # TODO: Finish BillSummary creation
 
         # TODO: Originating Bodies
         return b
