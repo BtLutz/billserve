@@ -88,9 +88,9 @@ class Representative(Legislator):
 # if I find any content in the recordedVotes field I can mark the boolean (has_been_voted_on) as True and then save
 # the corresponding votes. For right now I'm just going to focus on relaying the bill data to the user in a clean format
 class Bill(models.Model):
-    # TODO: Add congress field to the Bill model.
-    # The congress field is essential for rebuilding URLs (In case I don't have one) to the bill, and it's important
-    # for differentiating bill 987 in the 115th congressional senate from bill 987 in the 114th congressional senate.
+
+    # TODO: add a way to track what stage the bill is at.
+    # I can write a module that'll take Actions and analyze their type to find out how far it's gone
     sponsors = models.ManyToManyField('Legislator',
                                       through='Sponsorship',
                                       verbose_name='sponsors of the given bill',
@@ -100,7 +100,7 @@ class Bill(models.Model):
                                          verbose_name='co-sponsors of the given bill',
                                          related_name='co_sponsored_bills')
     policy_area = models.ForeignKey('PolicyArea', on_delete=models.SET_NULL, null=True)
-    legislative_subjects = models.ManyToManyField('LegislativeSubject')
+    legislative_subjects = models.ManyToManyField('LegislativeSubject', related_name='bills')
     related_bills = models.ManyToManyField('Bill')
     committees = models.ManyToManyField('Committee')
 
@@ -114,6 +114,8 @@ class Bill(models.Model):
     last_modified = models.DateTimeField(null=True)
 
     bill_number = models.IntegerField(verbose_name='bill number (relative to congressional session)', null=True)
+    # The congress field is essential for rebuilding URLs (In case I don't have one) to the bill, and it's important
+    # for differentiating bill 987 in the 115th congressional senate from bill 987 in the 114th congressional senate.
     congress = models.IntegerField(null=True)
 
     type = models.CharField(max_length=10, verbose_name='type of bill (S, HR, HRJRES, etc.)', null=True)
