@@ -1,6 +1,13 @@
 from django.shortcuts import render
-from django.http import HttpResponse
+from django.http import HttpResponse, JsonResponse
+from django.views.decorators.csrf import csrf_exempt
+
+from rest_framework.parsers import JSONParser
+from rest_framework.renderers import JSONRenderer
+
 from billserve.models import *
+from billserve.serializers import *
+
 import urllib3
 import json
 import logging
@@ -13,23 +20,143 @@ from pytz import utc
 # 1. Sell wholesale yearly access to congresspeople (i.e. $20K for unlimited queries)
 # 2. Sell per-unit queries (i.e. $0.05 per record accessed / $5 per query / etc.)
 
-
 # Process:
 # 1. Roll Call, Politico, Glenn Kessler @ WP would know if something like this has already been done
 # 2. Voting records
 
 # Features:
 # 1. Legislator reference page. Fancy vote counter
+
+# Important references:
+# 1. House of Representative voting example: http://clerk.house.gov/evs/2018/roll297.xml
+# 2. Senate voting example: https://www.senate.gov/legislative/LIS/roll_call_votes/vote1141/vote_114_1_00067.xml
+# It seems like the House of Representatives votes on a lot more bills than the senate...
+
+
+@csrf_exempt
+def bill_list(request):
+    """
+    Retrieve all bills.
+    :param request: A request object
+    :return: A JSON dump of all bills
+    """
+    if request.method == 'GET':
+        bills = Bill.objects.all()
+        serializer = BillSerializer(bills, many=True)
+        return JsonResponse(serializer.data, safe=False)
+
+
+@csrf_exempt
+def bill_congress_list(request, congress):
+    """
+    List all Bill objects with the corresponding congress number.
+    :param request: A request to the billserve/<c>/ endpoint
+    :param congress: The congress that you'd like to parse Bills from
+    :return: A JSON response with a list of all Bills proposed within the given congress
+    """
+    if request.method == 'GET':
+        bills = Bill.objects.filter(congress=congress)
+        serializer = BillSerializer(bills, many=True)
+        return JsonResponse(serializer.data, safe=False)
+
+
+@csrf_exempt
+def bill_congress_detail(request, congress, bill_number):
+    """
+    Retrieve a Bill.
+    :param request: A request object
+    :param congress: The congress number of the bill you'd like to return
+    :param bill_number: The bill number of the bill you'd like to return
+    :return: A JSON response containing a bill with a corresponding congress and bill_number, if it exists
+    """
+    try:
+        bill = Bill.objects.get(congress=congress, bill_number=bill_number)
+    except Bill.DoesNotExist:
+        return HttpResponse(status=404)
+
+    if request.method == 'GET':
+        serializer = BillSerializer(bill)
+        return JsonResponse(serializer.data)
+
+
+@csrf_exempt
+def bill_subject_list(request, legislative_subject_pk):
+    """
+    Retrieve all bills associated to a legislative subject with the given primary key.
+    :param request: A request object
+    :param legislative_subject_pk: the primary key of the legislative subject to look up
+    :return: A JSON response containing a dump of all bills with the legislative subject listed as related
+    """
+    if request.method == 'GET':
+        try:
+            legislative_subject = LegislativeSubject.objects.get(pk=legislative_subject_pk)
+        except LegislativeSubject.DoesNotExist:
+            return HttpResponse(status=404)
+        bills = legislative_subject.bills.all()
+        serializer = BillSerializer(bills, many=True)
+        return JsonResponse(serializer.data, safe=False)
+
+
+@csrf_exempt
+def bill_subject_congress_list(request, legislative_subject_pk, congress):
+    """
+    Retrieve all bills associated to a legislative subject with the given primary key proposed within a given congress.
+    :param request: A request object
+    :param legislative_subject_pk: The primary key of the given legislative subject to look up
+    :param congress: The number of the congressional session to look for bills in
+    :return: A response containing a list of all bills associated with the given legislative subject and congress
+    """
+    if request.method == 'GET':
+        try:
+            legislative_subject = LegislativeSubject.objects.get(pk=legislative_subject_pk)
+        except LegislativeSubject.DoesNotExist:
+            # TODO: Add better error responding to all endpoints that currently can return a 404 error.
+            # A good place to start would be placing info in the body informing the client exactly why they got a 404.
+            return HttpResponse(status=404)
+        bills = legislative_subject.bills.filter(congress=congress)
+        serializer = BillSerializer(bills, many=True)
+        return JsonResponse(serializer.data, safe=False)
+
+
+@csrf_exempt
+def subject_list(request):
+    """
+    Retrieve all legislative subjects.
+    :param request: A request to the /billserve/subjects/ endpoint
+    :return: A list of all legislative subjects
+    """
+    if request.method == 'GET':
+        legislative_subjects = LegislativeSubject.objects.all()
+        serializer = LegislativeSubjectSerializer(legislative_subjects, many=True)
+        return JsonResponse(serializer.data, safe=False)
+
+
 def index(request):
     return HttpResponse("Hello, world! You're at the bill serve index.")
 
 
 def update(request):
+    """
+    Updates the database with new data from govinfo.
+    :param request: A request object
+    :return: None
+    """
     def fix_name(n):
-        """ A little helper method for fixing the all-caps naming convention used in the bill status response """
-        return "{0}{1}".format(n[0], n[1:].lower())
+        """
+        Convert all uppercase string to have the first letter capitalized and the rest of the letters lowercase.
+        :param n: The string to convert
+        :return: The formalized string
+        """
+        assert isinstance(n, ''.__class__), 'parameter n is not a string: {n}'.format(n=n)
+        return "{0}{1}".format(n[0].upper(), n[1:].lower())
 
     def find_party(pa):
+        """
+        Looks up a political party based on its abbreviation. Soon to be deprecated in favor of initial data.
+        :param pa:
+        :return:
+        """
+        # TODO: this -> https://docs.djangoproject.com/en/2.0/howto/initial-data/
         if pa == 'R':
             return Party.objects.get_or_create(abbreviation='R', name='Republican')[0]
         elif pa == 'D':
@@ -39,7 +166,12 @@ def update(request):
             return Party.objects.get_or_create(abbreviation='I', name='Independent')[0]
 
     def find_state(sa):
-        # TODO: Abstract this state_dict into a separate file
+        """
+        Looks up a state based on its abbreviation. Soon to be deprecated in favor of initial data.
+        :param sa:
+        :return:
+        """
+        # TODO: this -> https://docs.djangoproject.com/en/2.0/howto/initial-data/
         state_dict = {'AL': 'Alabama',
                       'AK': 'Alaska',
                       'AZ': 'Arizona',
@@ -107,6 +239,14 @@ def update(request):
         return State.objects.get_or_create(abbreviation=sa, name=state_name)[0]
 
     def parse_without_coercion_2(fields, data, url):
+        # TODO: Rename after I delete the deprecated method
+        """
+        Parses nested data from a dictionary without converting the resultant raw data to a list type at the end.
+        :param fields: A list of strings to sequentially use as keys to drill into the data dictionary
+        :param data: A dictionary object
+        :param url: The URL at which the data parameter was parsed from
+        :return: The value of the data dictionary after being sequentially keyed by the strings in fields
+        """
         assert fields and data, ('Either fields or data not present in call to parse_without_coercion for {url}'
                                  'fields: {fields} data: {data}'.format(fields=fields, data=data, url=url))
         raw = data
@@ -124,6 +264,16 @@ def update(request):
         return raw
 
     def parse_and_coerce_to_list_2(fields, data, url):
+        # TODO: Rename after I delete the deprecated method
+        """
+        Parses nested data from a dictionary and places the resultant raw data into a list object, if it isn't already
+        a list.
+        :param fields: A list of strings to sequentially use as keys to drill down into the data dictionary
+        :param data: A dictionary object
+        :param url: The URL at which the data parameter was parsed from
+        :return: The value of the data dictionary after being sequentially keyed by the strings in fields, in a list
+        if it wasn't already a list when we found it.
+        """
         assert fields and data, ('Either fields or data not present in call to parse_and_coerce_to_list for {url}. '
                                  'fields: {fields}, data: {data}'.format(fields=fields, data=data, url=url))
         raw = data
@@ -136,11 +286,13 @@ def update(request):
                                                                                               fields=fields))
         except TypeError as e:
             logging.warning(('I encountered an empty dictionary entry for a field in {fields} in {url}. '
-            'Most likely it\'s just not a listed attribute for this bill.').format(fields=fields, url=url))
+                             'Most likely it\'s just not a listed attribute for this bill.').format(fields=fields,
+                                                                                                    url=url))
             return []
         return raw if isinstance(raw, [].__class__) else [raw]
 
     def parse_and_coerce_to_list(field, data, url):
+        # TODO: Delete and refactor
         try:
             raw = data[field]['item']
             return raw if isinstance(raw, [].__class__) else [raw]
@@ -154,12 +306,21 @@ def update(request):
             return []
 
     def parse_without_coercion(field, data, url):
+        # TODO: Delete and refactor
         try:
             return data[field]
         except KeyError as e:
             raise KeyError('Error parsing {field} from {url}: {e}'.format(field,field, url=url, e=e))
 
     def format_date(string, date_format, date_name, url):
+        """
+        Formats the given string into a Datetime object based on the given format.
+        :param string: A string to format into a date
+        :param date_format: A string containing the date format
+        :param date_name: A string containing the type of date we're trying to format
+        :param url: A URL to the page from which we found our string
+        :return: A datetime object set to the date and time represented by our string
+        """
         try:
             return datetime.datetime.strptime(string, date_format).astimezone(utc)
         except ValueError:
@@ -168,6 +329,7 @@ def update(request):
                                                                                             url=url, string=string))
 
     def get_legislator(lis_id, party, state, first_name, last_name, district_number=None):
+        # TODO: this -> https://docs.djangoproject.com/en/2.0/howto/initial-data/
         if not district_number:
             legislative_body = LegislativeBody.objects.get_or_create(name='Senate', abbreviation='S')[0]
             return Senator.objects.get_or_create(lis_id=lis_id, party=party, state=state, first_name=first_name,
@@ -181,6 +343,13 @@ def update(request):
                                                         district=district)[0]
 
     def populate_bill(url, b=None, last_modified_string=None):
+        """
+        Populates a bill object with data.
+        :param url: The URL at which the bill data can be found
+        :param b: The bill object to populate, if it already exists
+        :param last_modified_string: A string representing the last time a bill was modified on govinfo
+        :return: The updated bill
+        """
         # Coerce the last_modified_string into a Date object to see if we actually need to process this update.
         logging.info('Populating bill at {url}'.format(url=url))
         last_modified_date = format_date(last_modified_string, '%d-%b-%Y %H:%M', 'lastModifiedDate', url) \
@@ -222,9 +391,7 @@ def update(request):
         b.title = bill_title
         b.congress = bill_congress
         b.introduction_date = introduction_date
-        b.save()
-
-        logging.info('Saved new bill {number} at url {url}.'.format(number=b.bill_number, url=b.url))
+        b.last_modified = last_modified_date
 
         # Parse related object data from the converted XML
         sponsors = parse_and_coerce_to_list('sponsors', bill_data, url)
@@ -398,6 +565,9 @@ def update(request):
         elif bill_type in {'HR', 'HRES', 'HJRES', 'HCONRES'}:
             b.originating_body = LegislativeBody.objects.get_or_create(name='House of Representatives',
                                                                        abbreviation='HR')[0]
+        # Is it improper/unsafe to only save once this late in the view?
+        b.save()
+        logging.info('Saved or updated new bill {number} at url {url}.'.format(number=b.bill_number, url=b.url))
         return b
 
     # Setup and request for main bill directory. The headers are necessary for a request to the main directory,
@@ -425,3 +595,4 @@ def update(request):
         populate_bill(url=bill_status_url, last_modified_string=last_modified_string)
 
         return HttpResponse('OK')
+
