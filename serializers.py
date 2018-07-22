@@ -1,12 +1,43 @@
 from django.contrib.auth.models import User, Group
 from .models import *
 from rest_framework import serializers
+from rest_framework.reverse import reverse
+
+
+class BillShortSerializer(serializers.HyperlinkedModelSerializer):
+    title = serializers.CharField(source='__str__')
+
+    class Meta:
+        model = Bill
+        fields = ('title', 'url')
+
+
+class SenatorSerializer(serializers.ModelSerializer):
+    sponsored_bills = BillShortSerializer(many=True)
+    co_sponsored_bills = BillShortSerializer(many=True)
+
+    class Meta:
+        model = Senator
+        fields = ('lis_id', 'party', 'legislative_body', 'state', 'committees', 'first_name', 'last_name', 'pk',
+                  'co_sponsored_bills', 'sponsored_bills')
+
+
+class RepresentativeSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Representative
+        fields = ('lis_id', 'party', 'legislative_body', 'state', 'committees', 'first_name', 'last_name', 'district',
+                  'pk')
 
 
 class PartySerializer(serializers.ModelSerializer):
+    senators = SenatorSerializer(many=True)
+    representatives = RepresentativeSerializer(many=True)
+    senator_count = serializers.IntegerField(source='senators.count')
+    representative_count = serializers.IntegerField(source='representatives.count')
+
     class Meta:
         model = Party
-        fields = ('name', 'abbreviation', 'pk')
+        fields = ('name', 'abbreviation', 'senators', 'representatives', 'pk', 'representative_count', 'senator_count')
 
 
 class LegislativeBodySerializer(serializers.ModelSerializer):
@@ -25,19 +56,6 @@ class LegislatorSerializer(serializers.ModelSerializer):
     class Meta:
         model = Legislator
         fields = ('lis_id', 'party', 'legislative_body', 'state', 'committees', 'first_name', 'last_name', 'pk')
-
-
-class SenatorSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Senator
-        fields = ('lis_id', 'party', 'legislative_body', 'state', 'committees', 'first_name', 'last_name', 'pk')
-
-
-class RepresentativeSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Representative
-        fields = ('lis_id', 'party', 'legislative_body', 'state', 'committees', 'first_name', 'last_name', 'district',
-                  'pk')
 
 
 class BillSerializer(serializers.ModelSerializer):

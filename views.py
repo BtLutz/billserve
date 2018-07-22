@@ -1,20 +1,23 @@
 from django.shortcuts import render
-from django.http import HttpResponse, JsonResponse
-from django.views.decorators.csrf import csrf_exempt
+from django.http import HttpResponse, Http404
 
-from rest_framework.parsers import JSONParser
-from rest_framework.renderers import JSONRenderer
+from rest_framework import generics
+from rest_framework.decorators import api_view
+from rest_framework.response import Response
+from rest_framework.reverse import reverse
 
 from billserve.models import *
 from billserve.serializers import *
 
 import urllib3
+import certifi
 import json
 import logging
-from pdb import set_trace
 import xmltodict
 import datetime
 from pytz import utc
+
+from pdb import set_trace
 
 # Note: Possible ways to make money...
 # 1. Sell wholesale yearly access to congresspeople (i.e. $20K for unlimited queries)
@@ -33,102 +36,85 @@ from pytz import utc
 # It seems like the House of Representatives votes on a lot more bills than the senate...
 
 
-@csrf_exempt
-def bill_list(request):
-    """
-    Retrieve all bills.
-    :param request: A request object
-    :return: A JSON dump of all bills
-    """
-    if request.method == 'GET':
-        bills = Bill.objects.all()
-        serializer = BillSerializer(bills, many=True)
-        return JsonResponse(serializer.data, safe=False)
+@api_view(['GET'])
+def api_root(request, format=None):
+    return Response({
+        'parties': reverse('party-list', request=request, format=format),
+        # 'legislativeBodies': reverse('legislative-bodies-list', request=request, format=format),
+        # 'districts': reverse('district-list', request=request, format=format),
+        # 'legislators': reverse('legislator-list', request=request, format=format),
+        # 'senators': reverse('senator-list', request=request, format=format),
+        # 'representatives': reverse('representative-list', request=request, format=format),
+        'bills': reverse('bill-list', request=request, format=format),
+        # 'committees': reverse('committee-list', request=request, format=format),
+        # 'policyAreas': reverse('policy-area-list', request=request, format=format),
+        # 'legislativeSubjects': reverse('legislative-subject-list', request=request, format=format),
+        # 'states': reverse('state-list', request=request, format=format),
+    })
 
 
-@csrf_exempt
-def bill_congress_list(request, congress):
+class PartyList(generics.ListAPIView):
     """
-    List all Bill objects with the corresponding congress number.
-    :param request: A request to the billserve/<c>/ endpoint
-    :param congress: The congress that you'd like to parse Bills from
-    :return: A JSON response with a list of all Bills proposed within the given congress
+    List all parties.
     """
-    if request.method == 'GET':
-        bills = Bill.objects.filter(congress=congress)
-        serializer = BillSerializer(bills, many=True)
-        return JsonResponse(serializer.data, safe=False)
+    queryset = Party.objects.all()
+    serializer_class = PartySerializer
 
 
-@csrf_exempt
-def bill_congress_detail(request, congress, bill_number):
+class PartyDetail(generics.RetrieveAPIView):
     """
-    Retrieve a Bill.
-    :param request: A request object
-    :param congress: The congress number of the bill you'd like to return
-    :param bill_number: The bill number of the bill you'd like to return
-    :return: A JSON response containing a bill with a corresponding congress and bill_number, if it exists
+    Retrieve a party instance.
     """
-    try:
-        bill = Bill.objects.get(congress=congress, bill_number=bill_number)
-    except Bill.DoesNotExist:
-        return HttpResponse(status=404)
-
-    if request.method == 'GET':
-        serializer = BillSerializer(bill)
-        return JsonResponse(serializer.data)
+    queryset = Party.objects.all()
+    serializer_class = PartySerializer
 
 
-@csrf_exempt
-def bill_subject_list(request, legislative_subject_pk):
+class RepresentativeList(generics.ListAPIView):
     """
-    Retrieve all bills associated to a legislative subject with the given primary key.
-    :param request: A request object
-    :param legislative_subject_pk: the primary key of the legislative subject to look up
-    :return: A JSON response containing a dump of all bills with the legislative subject listed as related
+    List all representatives.
     """
-    if request.method == 'GET':
-        try:
-            legislative_subject = LegislativeSubject.objects.get(pk=legislative_subject_pk)
-        except LegislativeSubject.DoesNotExist:
-            return HttpResponse(status=404)
-        bills = legislative_subject.bills.all()
-        serializer = BillSerializer(bills, many=True)
-        return JsonResponse(serializer.data, safe=False)
+    queryset = Representative.objects.all()
+    serializer_class = RepresentativeSerializer
 
 
-@csrf_exempt
-def bill_subject_congress_list(request, legislative_subject_pk, congress):
+class RepresentativeDetail(generics.RetrieveAPIView):
     """
-    Retrieve all bills associated to a legislative subject with the given primary key proposed within a given congress.
-    :param request: A request object
-    :param legislative_subject_pk: The primary key of the given legislative subject to look up
-    :param congress: The number of the congressional session to look for bills in
-    :return: A response containing a list of all bills associated with the given legislative subject and congress
+    Retrieve a representative instance.
     """
-    if request.method == 'GET':
-        try:
-            legislative_subject = LegislativeSubject.objects.get(pk=legislative_subject_pk)
-        except LegislativeSubject.DoesNotExist:
-            # TODO: Add better error responding to all endpoints that currently can return a 404 error.
-            # A good place to start would be placing info in the body informing the client exactly why they got a 404.
-            return HttpResponse(status=404)
-        bills = legislative_subject.bills.filter(congress=congress)
-        serializer = BillSerializer(bills, many=True)
-        return JsonResponse(serializer.data, safe=False)
+    queryset = Representative.objects.all()
+    serializer_class = RepresentativeSerializer
 
 
-@csrf_exempt
-def subject_list(request):
+class SenatorList(generics.ListAPIView):
     """
-    Retrieve all legislative subjects.
-    :param request: A request to the /billserve/subjects/ endpoint
-    :return: A list of all legislative subjects
+    List all senators.
     """
-    if request.method == 'GET':
-        legislative_subjects = LegislativeSubject.objects.all()
-        serializer = LegislativeSubjectSerializer(legislative_subjects, many=True)
-        return JsonResponse(serializer.data, safe=False)
+    queryset = Senator.objects.all()
+    serializer_class = SenatorSerializer
+
+
+class SenatorDetail(generics.RetrieveAPIView):
+    """
+    Retrieve a senator instance.
+    """
+    queryset = Senator.objects.all()
+    serializer_class = SenatorSerializer
+
+
+class BillList(generics.ListAPIView):
+    """
+    List all bills.
+    """
+    queryset = Bill.objects.all()
+    serializer_class = BillSerializer
+
+
+class BillDetail(generics.RetrieveAPIView):
+    """
+    Retrieve a bill instance.
+    """
+    queryset = Bill.objects.all()
+    serializer_class = BillSerializer
 
 
 def index(request):
@@ -139,7 +125,7 @@ def update(request):
     """
     Updates the database with new data from govinfo.
     :param request: A request object
-    :return: None
+    :return: None`
     """
     def fix_name(n):
         """
@@ -231,15 +217,14 @@ def update(request):
                       'UM': 'U.S. Minor Outlying Islands',
                       'FM': 'Micronesia',
                       'MH': 'Marshall Island',
-                      'PW': 'Palau',}
+                      'PW': 'Palau'}
         try:
             state_name = state_dict[sa]
         except KeyError as e:
             raise KeyError('Unknown state abbreviation found: {e}'.format(e=e))
         return State.objects.get_or_create(abbreviation=sa, name=state_name)[0]
 
-    def parse_without_coercion_2(fields, data, url):
-        # TODO: Rename after I delete the deprecated method
+    def parse_without_coercion(fields, data, url):
         """
         Parses nested data from a dictionary without converting the resultant raw data to a list type at the end.
         :param fields: A list of strings to sequentially use as keys to drill into the data dictionary
@@ -249,12 +234,14 @@ def update(request):
         """
         assert fields and data, ('Either fields or data not present in call to parse_without_coercion for {url}'
                                  'fields: {fields} data: {data}'.format(fields=fields, data=data, url=url))
+        if not isinstance(fields, [].__class__):
+            fields = [fields]
         raw = data
         try:
             for field in fields:
                 raw = raw[field]
         except KeyError as e:
-            raise KeyError('Error parsing field from {ur}: {e}. Are you sure it\s there? all fields: {fields}'
+            raise KeyError('Error parsing field from {url}: {e}. Are you sure it\'s there? all fields: {fields}'
                            .format(url=url, e=e, fields=fields))
         except TypeError as e:
             logging.warning(('I encountered an empty dictionary entry for a field in {fields} in {url}. '
@@ -263,8 +250,7 @@ def update(request):
             return None
         return raw
 
-    def parse_and_coerce_to_list_2(fields, data, url):
-        # TODO: Rename after I delete the deprecated method
+    def parse_and_coerce_to_list(fields, data, url):
         """
         Parses nested data from a dictionary and places the resultant raw data into a list object, if it isn't already
         a list.
@@ -276,6 +262,8 @@ def update(request):
         """
         assert fields and data, ('Either fields or data not present in call to parse_and_coerce_to_list for {url}. '
                                  'fields: {fields}, data: {data}'.format(fields=fields, data=data, url=url))
+        if not isinstance(fields, [].__class__):
+            fields = [fields]
         raw = data
         try:
             for field in fields:
@@ -290,27 +278,6 @@ def update(request):
                                                                                                     url=url))
             return []
         return raw if isinstance(raw, [].__class__) else [raw]
-
-    def parse_and_coerce_to_list(field, data, url):
-        # TODO: Delete and refactor
-        try:
-            raw = data[field]['item']
-            return raw if isinstance(raw, [].__class__) else [raw]
-        except KeyError as e:
-            raise KeyError('KeyError parsing {field} from {url}: {e}'.format(field, url=url, e=e))
-        except TypeError as e:
-            # In this case, the field was most likely just missing from this particular bill. We log something to keep
-            # track of and for QA (just in case I did actually miss something).
-            logging.warning('NoneType passed into parse_and_coerce_from_list for field {field} on {url}'
-                            .format(field=field, url=url))
-            return []
-
-    def parse_without_coercion(field, data, url):
-        # TODO: Delete and refactor
-        try:
-            return data[field]
-        except KeyError as e:
-            raise KeyError('Error parsing {field} from {url}: {e}'.format(field,field, url=url, e=e))
 
     def format_date(string, date_format, date_name, url):
         """
@@ -329,18 +296,30 @@ def update(request):
                                                                                             url=url, string=string))
 
     def get_legislator(lis_id, party, state, first_name, last_name, district_number=None):
-        # TODO: this -> https://docs.djangoproject.com/en/2.0/howto/initial-data/
         if not district_number:
             legislative_body = LegislativeBody.objects.get_or_create(name='Senate', abbreviation='S')[0]
-            return Senator.objects.get_or_create(lis_id=lis_id, party=party, state=state, first_name=first_name,
-                                                 last_name=last_name, legislative_body=legislative_body)[0]
+            senator, created = Senator.objects.get_or_create(lis_id=lis_id, party=party, state=state,
+                                                             first_name=first_name,last_name=last_name,
+                                                             legislative_body=legislative_body)
+            if created:
+                message = 'Created new senator: {senator}'.format(senator=senator)
+            else:
+                message = 'Got existing senator: {senator}'.format(senator=senator)
+            logging.info(message)
+            return senator
         else:
             legislative_body = LegislativeBody.objects.get_or_create(name='House of Representatives',
                                                                      abbreviation='S')[0]
             district = District.objects.get_or_create(number=district_number, state=state)[0]
-            return Representative.objects.get_or_create(lis_id=lis_id, party=party, state=state, first_name=first_name,
-                                                        last_name=last_name, legislative_body=legislative_body,
-                                                        district=district)[0]
+            representative, created = Representative.objects.get_or_create(lis_id=lis_id, party=party, state=state, first_name=first_name,
+                                                                           last_name=last_name, legislative_body=legislative_body,
+                                                                           district=district)
+            if created:
+                message = 'Created new representative: {representative}'.format(representative=representative)
+            else :
+                message = 'Got existing representative: {representative}'.format(representative=representative)
+            logging.info(message)
+            return representative
 
     def populate_bill(url, b=None, last_modified_string=None):
         """
@@ -361,7 +340,7 @@ def update(request):
             b, created = Bill.objects.get_or_create(url=url)
             if not created and b.last_modified == last_modified_date:
                 logging.info('Found existing bill {number} to return'.format(number=b.bill_number))
-                # return b
+                return b
 
         # In this case, the bill either didn't already exist or it needs updating. We need to request
         # the bill's URL and update all fields and related models. In this case the method runs to completion.
@@ -392,7 +371,7 @@ def update(request):
         b.congress = bill_congress
         b.introduction_date = introduction_date
         b.last_modified = last_modified_date
-
+        b.save()
         # Parse related object data from the converted XML
         sponsors = parse_and_coerce_to_list('sponsors', bill_data, url)
         co_sponsors = parse_and_coerce_to_list('cosponsors', bill_data, url)
@@ -400,11 +379,11 @@ def update(request):
         actions = parse_and_coerce_to_list('actions', bill_data, url)
 
         # These are special case fields that are buried further in the XML doc than the other related models.
-        bill_summaries = parse_and_coerce_to_list_2(['summaries', 'billSummaries'], bill_data, url)
-        committees = parse_and_coerce_to_list_2(['committees', 'billCommittees'], bill_data, url)
-        policy_area = parse_without_coercion_2(['subjects', 'billSubjects', 'policyArea', 'name'], bill_data, url)
-        legislative_subjects = parse_and_coerce_to_list_2(['subjects', 'billSubjects', 'legislativeSubjects'],
-                                                          bill_data, url)
+        bill_summaries = parse_and_coerce_to_list(['summaries', 'billSummaries'], bill_data, url)
+        committees = parse_and_coerce_to_list(['committees', 'billCommittees'], bill_data, url)
+        policy_area = parse_without_coercion(['policyArea', 'name'], bill_data, url)
+        legislative_subjects = parse_and_coerce_to_list(['subjects', 'billSubjects', 'legislativeSubjects'],
+                                                        bill_data, url)
 
         for sponsor in sponsors:
             try:
@@ -482,8 +461,8 @@ def update(request):
         for action in actions:
             try:
                 action_date_string = action['actionDate']
-                committee_name_string = parse_without_coercion_2(['committee', 'name'], action, url)
-                committee_system_code = parse_without_coercion_2(['committee', 'systemCode'], action, url)
+                committee_name_string = parse_without_coercion(['committee', 'name'], action, url)
+                committee_system_code = parse_without_coercion(['committee', 'systemCode'], action, url)
                 action_text = action['text']
                 action_type = action['type']
             except KeyError as e:
@@ -530,7 +509,8 @@ def update(request):
             chamber = LegislativeBody.objects.get_or_create(name=committee_chamber_string)[0]
 
             defaults = {'chamber': chamber, 'type': committee_type}
-            committee = Committee.objects.update_or_create(defaults=defaults, system_code=committee_system_code)[0]
+            committee = Committee.objects.update_or_create(defaults=defaults, system_code=committee_system_code,
+                                                           name=committee_name)[0]
             b.committees.add(committee)
 
         for legislative_subject in legislative_subjects:
@@ -565,6 +545,7 @@ def update(request):
         elif bill_type in {'HR', 'HRES', 'HJRES', 'HCONRES'}:
             b.originating_body = LegislativeBody.objects.get_or_create(name='House of Representatives',
                                                                        abbreviation='HR')[0]
+
         # Is it improper/unsafe to only save once this late in the view?
         b.save()
         logging.info('Saved or updated new bill {number} at url {url}.'.format(number=b.bill_number, url=b.url))
@@ -574,7 +555,7 @@ def update(request):
     # otherwise I get a 406 error. That has to do with the Accept headers on the request, so I added them all in
     # to be safe.
     originating_url = 'https://www.govinfo.gov/bulkdata/json/BILLSTATUS/115/s'
-    http = urllib3.PoolManager()
+    http = urllib3.PoolManager(cert_reqs='CERT_REQUIRED', ca_certs=certifi.where())
     headers = {'Accept-Encoding': 'gzip, deflate, br',
                'Accept-Language': 'en-US,en;q=0.5',
                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'}
@@ -591,8 +572,8 @@ def update(request):
         # bill_status_url = parse_without_coercion('link', file, url)
         # TODO: Don't forget to switch back to the previous statement from this link below!!!
         bill_status_url = 'https://www.govinfo.gov/bulkdata/BILLSTATUS/115/s/BILLSTATUS-115s987.xml'
-        last_modified_string = parse_without_coercion('formattedLastModifiedTime', file, originating_url)
-        populate_bill(url=bill_status_url, last_modified_string=last_modified_string)
+        bill_last_modified_string = parse_without_coercion(['formattedLastModifiedTime'], file, originating_url)
+        populate_bill(url=bill_status_url, last_modified_string=bill_last_modified_string)
 
         return HttpResponse('OK')
 

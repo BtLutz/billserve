@@ -28,10 +28,6 @@ class District(models.Model):
 
 class Legislator(models.Model):
     lis_id = models.IntegerField()
-    party = models.ForeignKey('Party',
-                              on_delete=models.SET_NULL,
-                              verbose_name='legislator\'s party',
-                              null=True)
     legislative_body = models.ForeignKey('LegislativeBody',
                                          on_delete=models.SET_NULL,
                                          verbose_name='legislator\'s legislative body',
@@ -45,10 +41,9 @@ class Legislator(models.Model):
     last_name = models.CharField(max_length=100)
 
     def __str__(self):
-        return '{title}. {first_name} {last_name} [{party}-{state}]'.format(title=self.legislative_body.title,
+        return '{first_name} {last_name} [{state}]'.format(title=self.legislative_body.title,
                                                                             first_name=self.first_name,
                                                                             last_name=self.last_name,
-                                                                            party=self.party.abbreviation,
                                                                             state=self.state.abbreviation)
 
     def full_name(self):
@@ -65,6 +60,7 @@ class Legislator(models.Model):
 
 
 class Senator(Legislator):
+    party = models.ForeignKey('party', related_name='senators', on_delete=models.SET_NULL, null=True)
 
     def __str__(self):
         return 'Sen. {first_name} {last_name} [{party}-{state}]'.format(first_name=self.first_name,
@@ -74,6 +70,7 @@ class Senator(Legislator):
 
 
 class Representative(Legislator):
+    party = models.ForeignKey('party', related_name='representatives', on_delete=models.SET_NULL, null=True)
     district = models.ForeignKey('District', on_delete=models.SET_NULL, null=True)
 
     def __str__(self):
@@ -99,7 +96,7 @@ class Bill(models.Model):
                                          through='CoSponsorship',
                                          verbose_name='co-sponsors of the given bill',
                                          related_name='co_sponsored_bills')
-    policy_area = models.ForeignKey('PolicyArea', on_delete=models.SET_NULL, null=True)
+    policy_area = models.ForeignKey('PolicyArea', on_delete=models.SET_NULL, null=True, related_name='bills')
     legislative_subjects = models.ManyToManyField('LegislativeSubject', related_name='bills')
     related_bills = models.ManyToManyField('Bill')
     committees = models.ManyToManyField('Committee')
@@ -121,14 +118,14 @@ class Bill(models.Model):
     type = models.CharField(max_length=10, verbose_name='type of bill (S, HR, HRJRES, etc.)', null=True)
 
     cbo_cost_estimate = models.URLField(null=True)  # If CBO cost estimate in bill_status, then append it to the related bill
-    url = models.URLField()
+    bill_url = models.URLField()
     # NOTE: I'm adding in related_bills as a field for right now. This may be useful for later for if a user views
     # a bill and would like to see related bills through a query. I can provide an easy endpoints for the iOS controller
     # code that, after a bill is loaded in the view, can query all related bills asynchronously and add them to the view
     # as they come in.
 
     def __str__(self):
-        return str(self.bill_number)
+        return 'No. {bill_number}: {title}'.format(bill_number=self.bill_number, title=self.title)
 
     def co_sponsor_count(self):
         return self.co_sponsors.count()
