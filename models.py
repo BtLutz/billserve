@@ -1,4 +1,5 @@
 from django.db import models
+from model_utils.managers import InheritanceManager
 
 
 class Party(models.Model):
@@ -28,23 +29,9 @@ class District(models.Model):
 
 class Legislator(models.Model):
     lis_id = models.IntegerField()
-    legislative_body = models.ForeignKey('LegislativeBody',
-                                         on_delete=models.SET_NULL,
-                                         verbose_name='legislator\'s legislative body',
-                                         null=True,
-                                         related_name='members')
-    state = models.ForeignKey('State',
-                              on_delete=models.SET_NULL,
-                              null=True)
-    committees = models.ManyToManyField('Committee')  # Will not be able to relate rep to committee based on data given.
     first_name = models.CharField(max_length=100)
     last_name = models.CharField(max_length=100)
-
-    def __str__(self):
-        return '{first_name} {last_name} [{state}]'.format(title=self.legislative_body.title,
-                                                                            first_name=self.first_name,
-                                                                            last_name=self.last_name,
-                                                                            state=self.state.abbreviation)
+    objects = InheritanceManager()
 
     def full_name(self):
         return '{first_name} {last_name}'.format(first_name=self.first_name, last_name=self.last_name)
@@ -60,7 +47,11 @@ class Legislator(models.Model):
 
 
 class Senator(Legislator):
-    party = models.ForeignKey('party', related_name='senators', on_delete=models.SET_NULL, null=True)
+    party = models.ForeignKey('Party', related_name='senators', on_delete=models.SET_NULL, null=True)
+    legislative_body = models.ForeignKey('LegislativeBody', related_name='senators', on_delete=models.SET_NULL,
+                                         null=True)
+    state = models.ForeignKey('State', related_name='senators', on_delete=models.SET_NULL, null=True)
+    committees = models.ManyToManyField('Committee', related_name='senators')
 
     def __str__(self):
         return 'Sen. {first_name} {last_name} [{party}-{state}]'.format(first_name=self.first_name,
@@ -70,8 +61,12 @@ class Senator(Legislator):
 
 
 class Representative(Legislator):
-    party = models.ForeignKey('party', related_name='representatives', on_delete=models.SET_NULL, null=True)
-    district = models.ForeignKey('District', on_delete=models.SET_NULL, null=True)
+    party = models.ForeignKey('Party', related_name='representatives', on_delete=models.SET_NULL, null=True)
+    district = models.OneToOneField('District', related_name='representative', on_delete=models.SET_NULL, null=True)
+    legislative_body = models.ForeignKey('LegislativeBody', related_name='representatives', on_delete=models.SET_NULL,
+                                         null=True)
+    state = models.ForeignKey('State', related_name='representatives', on_delete=models.SET_NULL, null=True)
+    committees = models.ManyToManyField('Committee', related_name='representatives')
 
     def __str__(self):
         return 'Rep. {first_name} {last_name} [{party}-{district}]'.format(first_name=self.first_name,
@@ -85,7 +80,6 @@ class Representative(Legislator):
 # if I find any content in the recordedVotes field I can mark the boolean (has_been_voted_on) as True and then save
 # the corresponding votes. For right now I'm just going to focus on relaying the bill data to the user in a clean format
 class Bill(models.Model):
-
     # TODO: add a way to track what stage the bill is at.
     # I can write a module that'll take Actions and analyze their type to find out how far it's gone
     sponsors = models.ManyToManyField('Legislator',

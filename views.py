@@ -1,10 +1,10 @@
 from django.shortcuts import render
 from django.http import HttpResponse, Http404
 
+from rest_framework.reverse import reverse
 from rest_framework import generics
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
-from rest_framework.reverse import reverse
 
 from billserve.models import *
 from billserve.serializers import *
@@ -41,15 +41,15 @@ def api_root(request, format=None):
     return Response({
         'parties': reverse('party-list', request=request, format=format),
         # 'legislativeBodies': reverse('legislative-bodies-list', request=request, format=format),
-        # 'districts': reverse('district-list', request=request, format=format),
+        'districts': reverse('district-list', request=request, format=format),
         # 'legislators': reverse('legislator-list', request=request, format=format),
-        # 'senators': reverse('senator-list', request=request, format=format),
-        # 'representatives': reverse('representative-list', request=request, format=format),
+        'senators': reverse('senator-list', request=request, format=format),
+        'representatives': reverse('representative-list', request=request, format=format),
         'bills': reverse('bill-list', request=request, format=format),
         # 'committees': reverse('committee-list', request=request, format=format),
         # 'policyAreas': reverse('policy-area-list', request=request, format=format),
         # 'legislativeSubjects': reverse('legislative-subject-list', request=request, format=format),
-        # 'states': reverse('state-list', request=request, format=format),
+        'states': reverse('state-list', request=request, format=format),
     })
 
 
@@ -58,7 +58,7 @@ class PartyList(generics.ListAPIView):
     List all parties.
     """
     queryset = Party.objects.all()
-    serializer_class = PartySerializer
+    serializer_class = PartyShortSerializer
 
 
 class PartyDetail(generics.RetrieveAPIView):
@@ -69,12 +69,52 @@ class PartyDetail(generics.RetrieveAPIView):
     serializer_class = PartySerializer
 
 
+class StateList(generics.ListAPIView):
+    """
+    List all states.
+    """
+    queryset = State.objects.all()
+    serializer_class = StateShortSerializer
+
+
+class StateDetail(generics.RetrieveAPIView):
+    """
+    Retrieve a state instance.
+    """
+    queryset = State.objects.all()
+    serializer_class = StateSerializer
+
+
+class DistrictList(generics.ListAPIView):
+    """
+    List all districts.
+    """
+    queryset = District.objects.all()
+    serializer_class = DistrictShortSerializer
+
+
+class DistrictDetail(generics.RetrieveAPIView):
+    """
+    Retrieve a district instance.
+    """
+    queryset = District.objects.all()
+    serializer_class = DistrictSerializer
+
+
+class LegislatorList(generics.ListAPIView):
+    """
+    List all legislators.
+    """
+    queryset = Legislator.objects.select_subclasses()
+    serializer_class = LegislatorListSerializer
+
+
 class RepresentativeList(generics.ListAPIView):
     """
     List all representatives.
     """
     queryset = Representative.objects.all()
-    serializer_class = RepresentativeSerializer
+    serializer_class = RepresentativeShortSerializer
 
 
 class RepresentativeDetail(generics.RetrieveAPIView):
@@ -90,7 +130,7 @@ class SenatorList(generics.ListAPIView):
     List all senators.
     """
     queryset = Senator.objects.all()
-    serializer_class = SenatorSerializer
+    serializer_class = SenatorShortSerializer
 
 
 class SenatorDetail(generics.RetrieveAPIView):
@@ -106,7 +146,7 @@ class BillList(generics.ListAPIView):
     List all bills.
     """
     queryset = Bill.objects.all()
-    serializer_class = BillSerializer
+    serializer_class = BillShortSerializer
 
 
 class BillDetail(generics.RetrieveAPIView):
@@ -117,15 +157,11 @@ class BillDetail(generics.RetrieveAPIView):
     serializer_class = BillSerializer
 
 
-def index(request):
-    return HttpResponse("Hello, world! You're at the bill serve index.")
-
-
 def update(request):
     """
     Updates the database with new data from govinfo.
     :param request: A request object
-    :return: None`
+    :return: None
     """
     def fix_name(n):
         """
@@ -311,12 +347,13 @@ def update(request):
             legislative_body = LegislativeBody.objects.get_or_create(name='House of Representatives',
                                                                      abbreviation='S')[0]
             district = District.objects.get_or_create(number=district_number, state=state)[0]
-            representative, created = Representative.objects.get_or_create(lis_id=lis_id, party=party, state=state, first_name=first_name,
-                                                                           last_name=last_name, legislative_body=legislative_body,
+            representative, created = Representative.objects.get_or_create(lis_id=lis_id, party=party, state=state,
+                                                                           first_name=first_name, last_name=last_name,
+                                                                           legislative_body=legislative_body,
                                                                            district=district)
             if created:
                 message = 'Created new representative: {representative}'.format(representative=representative)
-            else :
+            else:
                 message = 'Got existing representative: {representative}'.format(representative=representative)
             logging.info(message)
             return representative
@@ -337,7 +374,7 @@ def update(request):
         # If we don't have a bill yet, look to see if one exists at this url. If it does and doesn't need updating,
         # just return it.
         if not b:
-            b, created = Bill.objects.get_or_create(url=url)
+            b, created = Bill.objects.get_or_create(bill_url=url)
             if not created and b.last_modified == last_modified_date:
                 logging.info('Found existing bill {number} to return'.format(number=b.bill_number))
                 return b
@@ -417,8 +454,8 @@ def update(request):
         for co_sponsor in co_sponsors:
             # Parse field from dict
             try:
-                first_name = co_sponsor['firstName']
-                last_name = co_sponsor['lastName']
+                first_name = fix_name(co_sponsor['firstName'])
+                last_name = fix_name(co_sponsor['lastName'])
                 full_name = co_sponsor['fullName']
                 lis_id = co_sponsor['identifiers']['lisID']
                 state_string = co_sponsor['state']
@@ -489,7 +526,7 @@ def update(request):
             related_bill_url = \
                 'https://www.govinfo.gov/bulkdata/BILLSTATUS/{congress}/{type}/BILLSTATUS-{congress}{type}{number}.xml'\
                 .format(congress=related_bill_congress, type=related_bill_type.lower(), number=related_bill_number)
-            related_bill, created = Bill.objects.get_or_create(url=related_bill_url)
+            related_bill, created = Bill.objects.get_or_create(bill_url=related_bill_url)
 
             if created:
                 related_bill = populate_bill(related_bill_url, b=related_bill)
@@ -519,7 +556,6 @@ def update(request):
             except KeyError as e:
                 raise KeyError('Error parsing name from legislativeSubject at {url}'.format(url=url))
             b.legislative_subjects.add(LegislativeSubject.objects.get_or_create(name=legislative_subject_name)[0])
-
         b.policy_area = PolicyArea.objects.get_or_create(name=policy_area)[0] if policy_area else None
 
         for bill_summary in bill_summaries:
@@ -548,7 +584,7 @@ def update(request):
 
         # Is it improper/unsafe to only save once this late in the view?
         b.save()
-        logging.info('Saved or updated new bill {number} at url {url}.'.format(number=b.bill_number, url=b.url))
+        logging.info('Saved or updated new bill {number} at url {url}.'.format(number=b.bill_number, url=b.bill_url))
         return b
 
     # Setup and request for main bill directory. The headers are necessary for a request to the main directory,
