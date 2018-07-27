@@ -59,7 +59,7 @@ class Senator(Legislator):
 
 class Representative(Legislator):
     party = models.ForeignKey('Party', related_name='representatives', on_delete=models.SET_NULL, null=True)
-    district = models.OneToOneField('District', related_name='representative', on_delete=models.SET_NULL, null=True)
+    district = models.ForeignKey('District', related_name='representative', on_delete=models.SET_NULL, null=True)
     legislative_body = models.ForeignKey('LegislativeBody', related_name='representatives', on_delete=models.SET_NULL,
                                          null=True)
     state = models.ForeignKey('State', related_name='representatives', on_delete=models.SET_NULL, null=True)
@@ -97,8 +97,7 @@ class Bill(models.Model):
     originating_body = models.ForeignKey('LegislativeBody', on_delete=models.SET_NULL, null=True)
 
     title = models.TextField(verbose_name='title of bill', null=True)
-
-    introduction_date = models.DateTimeField(verbose_name='date bill was created', null=True)
+    introduction_date = models.DateField(null=True)
     last_modified = models.DateTimeField(null=True)
 
     bill_number = models.IntegerField(verbose_name='bill number (relative to congressional session)', null=True)

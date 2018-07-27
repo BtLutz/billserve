@@ -381,7 +381,7 @@ def update(request):
             logging.info(message)
             return representative
 
-    def populate_bill(url, b=None, last_modified_string=None):
+    def populate_bill(url, b=None, last_modified_string=None, depth=0):
         """
         Populates a bill object with data.
         :param url: The URL at which the bill data can be found
@@ -432,6 +432,8 @@ def update(request):
         b.introduction_date = introduction_date
         b.last_modified = last_modified_date
         b.save()
+        if depth == 5:
+            return b
         # Parse related object data from the converted XML
         sponsors = parse_and_coerce_to_list('sponsors', bill_data, url)
         co_sponsors = parse_and_coerce_to_list('cosponsors', bill_data, url)
@@ -552,7 +554,7 @@ def update(request):
             related_bill, created = Bill.objects.get_or_create(bill_url=related_bill_url)
 
             if created:
-                related_bill = populate_bill(related_bill_url, b=related_bill)
+                related_bill = populate_bill(related_bill_url, b=related_bill, depth=depth + 1)
 
             b.related_bills.add(related_bill)
             related_bill.related_bills.add(b)
@@ -612,7 +614,6 @@ def update(request):
 
     # Setting up the logging. It doesn't normally output info-level logging, so I set it to output to a file.
     logging.basicConfig(filename='billserve/logs/views_update.log', level=logging.INFO)
-
     # Setup and request for main bill directory. The headers are necessary for a request to the main directory,
     # otherwise I get a 406 error. That has to do with the Accept headers on the request, so I added them all in
     # to be safe.
