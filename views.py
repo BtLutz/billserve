@@ -36,6 +36,8 @@ from pdb import set_trace
 # It seems like the House of Representatives votes on a lot more bills than the senate...
 # TODO: Implement API tokens. A special token should be allocated to allow access to the protected /update endpoint.
 # Everyone else should get generic tokens that allow access to the API methods.
+# TODO: Got an exception when parsing the 987 bill. The exception happened when I tried to save a char field that was
+# longer than 50 characters. It happened when I was parsing live on Heroku.
 
 @api_view(['GET'])
 def api_root(request, format=None):
@@ -404,18 +406,22 @@ def update(request):
 
         # In this case, the bill either didn't already exist or it needs updating. We need to request
         # the bill's URL and update all fields and related models. In this case the method runs to completion.
+        logging.info('Fetching URL {url}'.format(url=url))
+
         bill_status_response = http.request('GET', url)
         if bill_status_response.status != 200:
             raise urllib3.exceptions.HTTPError('Bad status encountered during fetch for {url}: {status}'
                                                .format(url=url, status=bill_status_response.status))
 
         # Parse the entirety of the bill data from XML to OrderedDicts
+        logging.info('Parsing {url} to XML'.format(url=url))
         try:
             bill_data = xmltodict.parse(bill_status_response.data)['billStatus']['bill']
         except KeyError as e:
             raise ValueError('Improperly formatted XML was found when parsing {url}'.format(url=url))
 
         # Parse the data we'll use to update our Bill object
+        logging.info('Parsing data from XML doc found at {url}'.format(url=url))
         bill_type = parse_without_coercion('billType', bill_data, url)
         bill_number = parse_without_coercion('billNumber', bill_data, url)
         bill_title = parse_without_coercion('title', bill_data, url)
@@ -425,6 +431,7 @@ def update(request):
         introduction_date = format_date(introduction_date_string, '%Y-%m-%d', 'introducedDate', url)
 
         # Update the Bill objects with the data we parsed
+        logging.info('Updating bill {bill_number} with simple fields'.format(bill_number=bill_number))
         b.type = bill_type
         b.bill_number = bill_number
         b.title = bill_title
@@ -432,9 +439,11 @@ def update(request):
         b.introduction_date = introduction_date
         b.last_modified = last_modified_date
         b.save()
+        logging.info('Performed initial save for bill {bill_number}'.format(bill_number=bill_number))
         if depth == 5:
             return b
         # Parse related object data from the converted XML
+        logging.info('Parsing related object data from XML...')
         sponsors = parse_and_coerce_to_list('sponsors', bill_data, url)
         co_sponsors = parse_and_coerce_to_list('cosponsors', bill_data, url)
         related_bills = parse_and_coerce_to_list('relatedBills', bill_data, url)
@@ -447,6 +456,7 @@ def update(request):
         legislative_subjects = parse_and_coerce_to_list(['subjects', 'billSubjects', 'legislativeSubjects'],
                                                         bill_data, url)
 
+        logging.info('Adding sponsors to bill {bill_number}'.format(bill_number=bill_number))
         for sponsor in sponsors:
             try:
                 first_name = fix_name(sponsor['firstName'])
@@ -459,7 +469,7 @@ def update(request):
                 raise KeyError('Error parsing data from sponsor in {url}: {e}'.format(url=url, e=e))
             except TypeError as e:
                 raise TypeError('Most likely a missing field on sponsor in {url}: {e}'.format(url=url, e=e))
-
+            logging.info('Processing sponsor {full_name}'.format(full_name=full_name))
             try:
                 district_number = sponsor['district']
             except KeyError:
@@ -476,6 +486,7 @@ def update(request):
             if not Sponsorship.objects.filter(legislator=legislator, bill=b).exists():
                 Sponsorship.objects.create(legislator=legislator, bill=b)
 
+        logging.info('Adding co-sponsors to bill')
         for co_sponsor in co_sponsors:
             # Parse field from dict
             try:
@@ -489,7 +500,7 @@ def update(request):
                 co_sponsorship_date_string = co_sponsor['sponsorshipDate']
             except KeyError as e:
                 raise KeyError('Error parsing field from co_sponsor at {url}: {e}'.format(url=url, e=e))
-
+            logging.info('Proccessing co-sponsor {full_name}'.format(full_name=full_name))
             try:
                 district_number = co_sponsor['district']
             except KeyError:
@@ -520,6 +531,7 @@ def update(request):
                                              co_sponsorship_date=co_sponsorship_date,
                                              is_original_cosponsor=is_original_co_sponsor)
 
+        logging.info('Adding actions to bill')
         for action in actions:
             try:
                 action_date_string = action['actionDate']
@@ -531,6 +543,8 @@ def update(request):
                 raise KeyError('Error parsing field from action at {url}: {e}'.format(url=url, e=e))
             action_date = format_date(action_date_string, '%Y-%m-%d', 'actionDate', url)
 
+            logging.info('Processing action {action_text}'.format(action_text))
+
             committee = Committee.objects.get_or_create(
                 name=committee_name_string, system_code=committee_system_code)[0] \
                 if committee_name_string else None
@@ -540,6 +554,69 @@ def update(request):
                 Action.objects.create(committee=committee, bill=b, action_text=action_text,
                                       action_type=action_type, action_date=action_date)
 
+        logging.info('Adding committees to bill')
+        for committee in committees:
+            try:
+                committee_name = committee['name']
+                committee_type = committee['type']
+                committee_chamber_string = committee['chamber']
+                committee_system_code = committee['systemCode']
+            except KeyError as e:
+                raise KeyError('Error parsing field from committee at {url}: {e}'.format(url=url, e=e))
+
+            logging.info('Processing committee {committee_name}'.format(committee_name=committee_name))
+
+            chamber = LegislativeBody.objects.get_or_create(name=committee_chamber_string)[0]
+
+            defaults = {'chamber': chamber, 'type': committee_type}
+            committee = Committee.objects.update_or_create(defaults=defaults, system_code=committee_system_code,
+                                                           name=committee_name)[0]
+            b.committees.add(committee)
+
+        logging.info('Adding legislative subjects to bill')
+        for legislative_subject in legislative_subjects:
+            try:
+                legislative_subject_name = legislative_subject['name']
+            except KeyError as e:
+                raise KeyError('Error parsing name from legislativeSubject at {url}'.format(url=url))
+            logging.info('Processing {legislative_subject_name}'.format(
+                legislative_subject_name=legislative_subject_name))
+            b.legislative_subjects.add(LegislativeSubject.objects.get_or_create(name=legislative_subject_name)[0])
+
+        logging.info('Adding policy area to bill')
+        b.policy_area = PolicyArea.objects.get_or_create(name=policy_area)[0] if policy_area else None
+
+        logging.info('Adding bill summaries to bill')
+        for bill_summary in bill_summaries:
+            try:
+                bill_summary_name = bill_summary['name']
+                bill_summary_action_date_string = bill_summary['actionDate']
+                bill_summary_text = bill_summary['text']
+                bill_summary_action_description = bill_summary['actionDesc']
+            except KeyError as e:
+                raise KeyError('Error parsing field from bill_summary at {url}: {e}'.format(url=url, e=e))
+
+            logging.info('Processing {bill_summary_name}'.format(bill_summary_name=bill_summary_name))
+
+            action_date = format_date(bill_summary_action_date_string, '%Y-%m-%d', 'actionDate', url)
+
+            if not BillSummary.objects.filter(name=bill_summary_name, bill=b, action_date=action_date).exists():
+                BillSummary.objects.create(name=bill_summary_name, text=bill_summary_text,
+                                           action_description=bill_summary_action_description,
+                                           action_date=action_date, bill=b)
+
+        # Adding originating body to the bill. This is relevant for any queries that might want to look up all bills
+        # currently on the floor of the senate.
+        logging.info('Adding originating body')
+        if bill_type in {'S', 'SJRES', 'SRES', 'SCONRES'}:
+            b.originating_body = LegislativeBody.objects.get_or_create(name='Senate', abbreviation='S')[0]
+        elif bill_type in {'HR', 'HRES', 'HJRES', 'HCONRES'}:
+            b.originating_body = LegislativeBody.objects.get_or_create(name='House of Representatives',
+                                                                       abbreviation='HR')[0]
+        logging.info('Saving bill {bill_number}'.format(bill_number=b.bill_number))
+        b.save()
+
+        logging.info('Adding related bills to {bill_number}'.format(bill_number=b.bill_number))
         for related_bill in related_bills:
             try:
                 related_bill_type = related_bill['type']
@@ -547,6 +624,8 @@ def update(request):
                 related_bill_number = related_bill['number']
             except KeyError as e:
                 raise KeyError('Error parsing field from related_bill in {url}: {e}'.format(url=url, e=e))
+
+            logging.info('Processing related bill {bill_number'.format(bill_number=related_bill_number))
 
             related_bill_url = \
                 'https://www.govinfo.gov/bulkdata/BILLSTATUS/{congress}/{type}/BILLSTATUS-{congress}{type}{number}.xml'\
@@ -559,55 +638,6 @@ def update(request):
             b.related_bills.add(related_bill)
             related_bill.related_bills.add(b)
 
-        for committee in committees:
-            try:
-                committee_name = committee['name']
-                committee_type = committee['type']
-                committee_chamber_string = committee['chamber']
-                committee_system_code = committee['systemCode']
-            except KeyError as e:
-                raise KeyError('Error parsing field from committee at {url}: {e}'.format(url=url, e=e))
-
-            chamber = LegislativeBody.objects.get_or_create(name=committee_chamber_string)[0]
-
-            defaults = {'chamber': chamber, 'type': committee_type}
-            committee = Committee.objects.update_or_create(defaults=defaults, system_code=committee_system_code,
-                                                           name=committee_name)[0]
-            b.committees.add(committee)
-
-        for legislative_subject in legislative_subjects:
-            try:
-                legislative_subject_name = legislative_subject['name']
-            except KeyError as e:
-                raise KeyError('Error parsing name from legislativeSubject at {url}'.format(url=url))
-            b.legislative_subjects.add(LegislativeSubject.objects.get_or_create(name=legislative_subject_name)[0])
-        b.policy_area = PolicyArea.objects.get_or_create(name=policy_area)[0] if policy_area else None
-
-        for bill_summary in bill_summaries:
-            try:
-                bill_summary_name = bill_summary['name']
-                bill_summary_action_date_string = bill_summary['actionDate']
-                bill_summary_text = bill_summary['text']
-                bill_summary_action_description = bill_summary['actionDesc']
-            except KeyError as e:
-                raise KeyError('Error parsing field from bill_summary at {url}: {e}'.format(url=url, e=e))
-
-            action_date = format_date(bill_summary_action_date_string, '%Y-%m-%d', 'actionDate', url)
-
-            if not BillSummary.objects.filter(name=bill_summary_name, bill=b, action_date=action_date).exists():
-                BillSummary.objects.create(name=bill_summary_name, text=bill_summary_text,
-                                           action_description=bill_summary_action_description,
-                                           action_date=action_date, bill=b)
-
-        # Adding originating body to the bill. This is relevant for any queries that might want to look up all bills
-        # currently on the floor of the senate.
-        if bill_type in {'S', 'SJRES', 'SRES', 'SCONRES'}:
-            b.originating_body = LegislativeBody.objects.get_or_create(name='Senate', abbreviation='S')[0]
-        elif bill_type in {'HR', 'HRES', 'HJRES', 'HCONRES'}:
-            b.originating_body = LegislativeBody.objects.get_or_create(name='House of Representatives',
-                                                                       abbreviation='HR')[0]
-
-        # Is it improper/unsafe to only save once this late in the view?
         b.save()
         logging.info('Saved or updated new bill {number} at url {url}.'.format(number=b.bill_number, url=b.bill_url))
         return b
