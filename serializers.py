@@ -7,7 +7,7 @@ class BillShortSerializer(serializers.HyperlinkedModelSerializer):
 
     class Meta:
         model = Bill
-        fields = ('title', 'url')
+        fields = ('title', 'introduction_date', 'bill_number', 'congress', 'type', 'url')
 
 
 class PartyShortSerializer(serializers.HyperlinkedModelSerializer):
@@ -125,7 +125,7 @@ class LegislatorListSerializer(serializers.ModelSerializer):
         if isinstance(instance, Representative):
             return RepresentativeShortSerializer(instance=instance, context=self.context).data
         elif isinstance(instance, Senator):
-            return SenatorSerializer(instance=instance, context=self.context).data
+            return SenatorShortSerializer(instance=instance, context=self.context).data
         else:
             return LegislatorShortSerializer(instance=instance, context=self.context).data
 
@@ -134,10 +134,18 @@ class LegislatorListSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
 
-class LegislativeSubjectSerializer(serializers.ModelSerializer):
+class LegislativeSubjectShortSerializer(serializers.HyperlinkedModelSerializer):
     class Meta:
         model = LegislativeSubject
-        fields = ('name', 'pk')
+        fields = ('name', 'url')
+
+
+class LegislativeSubjectSerializer(serializers.ModelSerializer):
+    bills = BillShortSerializer(many=True)
+
+    class Meta:
+        model = LegislativeSubject
+        fields = ('name', 'bills')
 
 
 class BillSerializer(serializers.ModelSerializer):
@@ -173,10 +181,18 @@ class CommitteeSerializer(serializers.ModelSerializer):
         fields = ('name', 'type', 'system_code', 'chamber', 'pk')
 
 
-class PolicyAreaSerializer(serializers.ModelSerializer):
+class PolicyAreaShortSerializer(serializers.HyperlinkedModelSerializer):
     class Meta:
         model = PolicyArea
-        fields = ('name', 'pk')
+        fields = ('name', 'url')
+
+
+class PolicyAreaSerializer(serializers.ModelSerializer):
+    bills = BillShortSerializer(many=True)
+
+    class Meta:
+        model = PolicyArea
+        fields = ('name', 'bills')
 
 
 class ActionSerializer(serializers.ModelSerializer):

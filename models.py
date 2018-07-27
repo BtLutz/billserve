@@ -11,7 +11,7 @@ class Party(models.Model):
 
 
 class LegislativeBody(models.Model):
-    name = models.CharField(max_length=20)
+    name = models.CharField(max_length=200)
     abbreviation = models.CharField(max_length=5)
     title = models.CharField(max_length=5)
 
@@ -35,9 +35,6 @@ class Legislator(models.Model):
 
     def full_name(self):
         return '{first_name} {last_name}'.format(first_name=self.first_name, last_name=self.last_name)
-    # If we find a bill with a sponsor or co-sponsor who doesn't yet exist,
-    # make a new entry with that sponsor's info and then add them
-    # to the bill's sponsors or co-sponsors.
 
     def sponsored_bills(self):
         return self.sponsored_bills.all()

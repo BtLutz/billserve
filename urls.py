@@ -28,5 +28,10 @@ urlpatterns = format_suffix_patterns([
     re_path(r'^senators/$', views.SenatorList.as_view(), name='senator-list'),
     re_path(r'^senators/(?P<pk>[0-9]+)/$', views.SenatorDetail.as_view(), name='senator-detail'),
     re_path(r'^bills/$', views.BillList.as_view(), name='bill-list'),
-    re_path(r'^bills/(?P<pk>[0-9]+)/$', views.BillDetail.as_view(), name='bill-detail')
+    re_path(r'^bills/(?P<pk>[0-9]+)/$', views.BillDetail.as_view(), name='bill-detail'),
+    re_path(r'^legislative-subjects/$', views.LegislativeSubjectList.as_view(), name='legislativesubject-list'),
+    re_path(r'^legislative-subjects/(?P<pk>[0-9]+)/$', views.LegislativeSubjectDetail.as_view(),
+            name='legislativesubject-detail'),
+    re_path(r'^policy-areas/$', views.PolicyAreaList.as_view(), name='policyarea-list'),
+    re_path(r'^policy-areas/(?P<pk>[0-9]+)/$', views.PolicyAreaDetail.as_view(), name='policyarea-detail')
 ])

@@ -34,7 +34,8 @@ from pdb import set_trace
 # 1. House of Representative voting example: http://clerk.house.gov/evs/2018/roll297.xml
 # 2. Senate voting example: https://www.senate.gov/legislative/LIS/roll_call_votes/vote1141/vote_114_1_00067.xml
 # It seems like the House of Representatives votes on a lot more bills than the senate...
-
+# TODO: Implement API tokens. A special token should be allocated to allow access to the protected /update endpoint.
+# Everyone else should get generic tokens that allow access to the API methods.
 
 @api_view(['GET'])
 def api_root(request, format=None):
@@ -47,8 +48,8 @@ def api_root(request, format=None):
         'representatives': reverse('representative-list', request=request, format=format),
         'bills': reverse('bill-list', request=request, format=format),
         # 'committees': reverse('committee-list', request=request, format=format),
-        # 'policyAreas': reverse('policy-area-list', request=request, format=format),
-        # 'legislativeSubjects': reverse('legislative-subject-list', request=request, format=format),
+        'policyAreas': reverse('policyarea-list', request=request, format=format),
+        'legislativeSubjects': reverse('legislativesubject-list', request=request, format=format),
         'states': reverse('state-list', request=request, format=format),
     })
 
@@ -155,6 +156,26 @@ class BillDetail(generics.RetrieveAPIView):
     """
     queryset = Bill.objects.all()
     serializer_class = BillSerializer
+
+
+class LegislativeSubjectList(generics.ListAPIView):
+    queryset = LegislativeSubject.objects.all()
+    serializer_class = LegislativeSubjectShortSerializer
+
+
+class LegislativeSubjectDetail(generics.RetrieveAPIView):
+    queryset = LegislativeSubject.objects.all()
+    serializer_class = LegislativeSubjectSerializer
+
+
+class PolicyAreaList(generics.ListAPIView):
+    queryset = PolicyArea.objects.all()
+    serializer_class = PolicyAreaShortSerializer
+
+
+class PolicyAreaDetail(generics.RetrieveAPIView):
+    queryset = PolicyArea.objects.all()
+    serializer_class = PolicyAreaSerializer
 
 
 def update(request):
@@ -332,6 +353,8 @@ def update(request):
                                                                                             url=url, string=string))
 
     def get_legislator(lis_id, party, state, first_name, last_name, district_number=None):
+        logging.info('Getting legislator {first_name} {last_name} {lis_id}'.format(first_name=first_name,
+                                                                                   last_name=last_name, lis_id=lis_id))
         if not district_number:
             legislative_body = LegislativeBody.objects.get_or_create(name='Senate', abbreviation='S')[0]
             senator, created = Senator.objects.get_or_create(lis_id=lis_id, party=party, state=state,
@@ -586,6 +609,9 @@ def update(request):
         b.save()
         logging.info('Saved or updated new bill {number} at url {url}.'.format(number=b.bill_number, url=b.bill_url))
         return b
+
+    # Setting up the logging. It doesn't normally output info-level logging, so I set it to output to a file.
+    logging.basicConfig(filename='billserve/logs/views_update.log', level=logging.INFO)
 
     # Setup and request for main bill directory. The headers are necessary for a request to the main directory,
     # otherwise I get a 406 error. That has to do with the Accept headers on the request, so I added them all in
