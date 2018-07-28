@@ -4,10 +4,11 @@ from rest_framework import serializers
 
 class BillShortSerializer(serializers.HyperlinkedModelSerializer):
     title = serializers.CharField(source='__str__')
+    # TODO: Add policy_area as a field to the Meta
 
     class Meta:
         model = Bill
-        fields = ('title', 'introduction_date', 'bill_number', 'congress', 'type', 'url')
+        fields = ('title', 'introduction_date', 'last_modified', 'bill_number', 'congress', 'type', 'url')
 
 
 class PartyShortSerializer(serializers.HyperlinkedModelSerializer):
@@ -107,7 +108,7 @@ class LegislativeBodySerializer(serializers.ModelSerializer):
 
 
 class DistrictSerializer(serializers.ModelSerializer):
-    representative = RepresentativeShortSerializer()
+    representative = RepresentativeShortSerializer(many=True)
 
     class Meta:
         model = District
@@ -162,18 +163,25 @@ class PolicyAreaSerializer(serializers.ModelSerializer):
         fields = ('name', 'bills')
 
 
+class BillSummarySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = BillSummary
+        fields = ('name', 'text', 'action_description', 'action_date', 'bill')
+
+
 class BillSerializer(serializers.ModelSerializer):
     related_bills = BillShortSerializer(many=True)
     sponsors = serializers.SerializerMethodField()
     co_sponsors = serializers.SerializerMethodField()
     legislative_subjects = LegislativeSubjectShortSerializer(many=True)
     policy_area = PolicyAreaShortSerializer()
+    bill_summaries = BillSummarySerializer(many=True)
 
     class Meta:
         model = Bill
         fields = ('sponsors', 'co_sponsors', 'policy_area', 'legislative_subjects', 'related_bills', 'committees',
-                  'originating_body', 'title', 'introduction_date', 'last_modified', 'bill_number', 'congress', 'type',
-                  'cbo_cost_estimate', 'url', 'bill_url')
+                  'originating_body', 'title', 'bill_summaries', 'introduction_date', 'last_modified', 'bill_number',
+                  'congress', 'type', 'cbo_cost_estimate', 'url', 'bill_url')
         depth = 1
 
     def get_sponsors(self, obj):
@@ -183,12 +191,6 @@ class BillSerializer(serializers.ModelSerializer):
     def get_co_sponsors(self, obj):
         co_sponsors = obj.co_sponsors.select_subclasses()
         return LegislatorListSerializer(co_sponsors, many=True, context=self.context).data
-
-
-class BillSummarySerializer(serializers.ModelSerializer):
-    class Meta:
-        model = BillSummary
-        fields = ('name', 'text', 'action_description', 'action_date', 'bill')
 
 
 class CommitteeSerializer(serializers.ModelSerializer):
