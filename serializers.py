@@ -63,7 +63,7 @@ class SenatorSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Senator
-        fields = ('lis_id', 'party', 'legislative_body', 'state', 'committees', 'first_name', 'last_name', 'pk',
+        fields = ('lis_id', 'party', 'legislative_body', 'state', 'committees', 'first_name', 'last_name',
                   'co_sponsored_bills', 'sponsored_bills')
 
 
@@ -76,7 +76,7 @@ class RepresentativeSerializer(serializers.ModelSerializer):
     class Meta:
         model = Representative
         fields = ('lis_id', 'party', 'legislative_body', 'state', 'committees', 'first_name', 'last_name', 'district',
-                  'pk', 'sponsored_bills', 'co_sponsored_bills')
+                  'sponsored_bills', 'co_sponsored_bills')
 
 
 class PartySerializer(serializers.ModelSerializer):
@@ -87,7 +87,7 @@ class PartySerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Party
-        fields = ('name', 'abbreviation', 'senators', 'representatives', 'pk', 'representative_count', 'senator_count')
+        fields = ('name', 'abbreviation', 'senators', 'representatives', 'representative_count', 'senator_count')
 
 
 class StateSerializer(serializers.ModelSerializer):
@@ -97,13 +97,13 @@ class StateSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = State
-        fields = ('name', 'abbreviation', 'pk', 'senators', 'representatives', 'representative_count')
+        fields = ('name', 'abbreviation', 'senators', 'representatives', 'representative_count')
 
 
 class LegislativeBodySerializer(serializers.ModelSerializer):
     class Meta:
         model = LegislativeBody
-        fields = ('name', 'abbreviation', 'pk')
+        fields = ('name', 'abbreviation')
 
 
 class DistrictSerializer(serializers.ModelSerializer):
@@ -111,7 +111,7 @@ class DistrictSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = District
-        fields = ('number', 'state', 'pk', 'representative')
+        fields = ('number', 'state', 'representative')
 
 
 class LegislatorSerializer(serializers.ModelSerializer):
@@ -148,39 +148,6 @@ class LegislativeSubjectSerializer(serializers.ModelSerializer):
         fields = ('name', 'bills')
 
 
-class BillSerializer(serializers.ModelSerializer):
-    related_bills = BillShortSerializer(many=True)
-    sponsors = serializers.SerializerMethodField()
-    co_sponsors = serializers.SerializerMethodField()
-
-    class Meta:
-        model = Bill
-        fields = ('sponsors', 'co_sponsors', 'policy_area', 'legislative_subjects', 'related_bills', 'committees',
-                  'originating_body', 'title', 'introduction_date', 'last_modified', 'bill_number', 'congress', 'type',
-                  'cbo_cost_estimate', 'url', 'bill_url', 'pk')
-        depth = 1
-
-    def get_sponsors(self, obj):
-        sponsors = obj.sponsors.select_subclasses()
-        return LegislatorListSerializer(sponsors, many=True, context=self.context).data
-
-    def get_co_sponsors(self, obj):
-        co_sponsors = obj.co_sponsors.select_subclasses()
-        return LegislatorListSerializer(co_sponsors, many=True, context=self.context).data
-
-
-class BillSummarySerializer(serializers.ModelSerializer):
-    class Meta:
-        model = BillSummary
-        fields = ('name', 'text', 'action_description', 'action_date', 'bill', 'pk')
-
-
-class CommitteeSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Committee
-        fields = ('name', 'type', 'system_code', 'chamber', 'pk')
-
-
 class PolicyAreaShortSerializer(serializers.HyperlinkedModelSerializer):
     class Meta:
         model = PolicyArea
@@ -195,10 +162,45 @@ class PolicyAreaSerializer(serializers.ModelSerializer):
         fields = ('name', 'bills')
 
 
+class BillSerializer(serializers.ModelSerializer):
+    related_bills = BillShortSerializer(many=True)
+    sponsors = serializers.SerializerMethodField()
+    co_sponsors = serializers.SerializerMethodField()
+    legislative_subjects = LegislativeSubjectShortSerializer(many=True)
+    policy_area = PolicyAreaShortSerializer()
+
+    class Meta:
+        model = Bill
+        fields = ('sponsors', 'co_sponsors', 'policy_area', 'legislative_subjects', 'related_bills', 'committees',
+                  'originating_body', 'title', 'introduction_date', 'last_modified', 'bill_number', 'congress', 'type',
+                  'cbo_cost_estimate', 'url', 'bill_url')
+        depth = 1
+
+    def get_sponsors(self, obj):
+        sponsors = obj.sponsors.select_subclasses()
+        return LegislatorListSerializer(sponsors, many=True, context=self.context).data
+
+    def get_co_sponsors(self, obj):
+        co_sponsors = obj.co_sponsors.select_subclasses()
+        return LegislatorListSerializer(co_sponsors, many=True, context=self.context).data
+
+
+class BillSummarySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = BillSummary
+        fields = ('name', 'text', 'action_description', 'action_date', 'bill')
+
+
+class CommitteeSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Committee
+        fields = ('name', 'type', 'system_code', 'chamber')
+
+
 class ActionSerializer(serializers.ModelSerializer):
     class Meta:
         model = Action
-        fields = ('committee', 'bill', 'action_text', 'action_type', 'action_date', 'pk')
+        fields = ('committee', 'bill', 'action_text', 'action_type', 'action_date')
 
 
 class VoteSerializer(serializers.ModelSerializer):
