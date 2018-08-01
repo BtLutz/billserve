@@ -500,7 +500,7 @@ def update(request):
                 co_sponsorship_date_string = co_sponsor['sponsorshipDate']
             except KeyError as e:
                 raise KeyError('Error parsing field from co_sponsor at {url}: {e}'.format(url=url, e=e))
-            logging.info('Proccessing co-sponsor {full_name}'.format(full_name=full_name))
+            logging.info('Processing co-sponsor {full_name}'.format(full_name=full_name))
             try:
                 district_number = co_sponsor['district']
             except KeyError:
@@ -625,7 +625,7 @@ def update(request):
             except KeyError as e:
                 raise KeyError('Error parsing field from related_bill in {url}: {e}'.format(url=url, e=e))
 
-            logging.info('Processing related bill {bill_number'.format(bill_number=related_bill_number))
+            logging.info('Processing related bill {bill_number}'.format(bill_number=related_bill_number))
 
             related_bill_url = \
                 'https://www.govinfo.gov/bulkdata/BILLSTATUS/{congress}/{type}/BILLSTATUS-{congress}{type}{number}.xml'\
