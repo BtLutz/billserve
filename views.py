@@ -543,7 +543,7 @@ def update(request):
                 raise KeyError('Error parsing field from action at {url}: {e}'.format(url=url, e=e))
             action_date = format_date(action_date_string, '%Y-%m-%d', 'actionDate', url)
 
-            logging.info('Processing action {action_text}'.format(action_text))
+            logging.info('Processing action {action_text}'.format(action_text=action_text))
 
             committee = Committee.objects.get_or_create(
                 name=committee_name_string, system_code=committee_system_code)[0] \
