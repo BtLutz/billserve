@@ -152,7 +152,7 @@ class BillList(generics.ListAPIView):
     serializer_class = BillShortSerializer
 
 
-class BillDetail(generics.RetrieveAPIView):
+class BillDetail(generics.ListAPIView):
     """
     Retrieve a bill instance.
     """
