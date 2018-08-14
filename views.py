@@ -153,20 +153,28 @@ class BillList(generics.ListAPIView):
     serializer_class = BillShortSerializer
 
 
-class BillDetail(APIView):
+class BillDetail(generics.RetrieveAPIView):
     """
     Retrieve a bill instance.
     """
-    def get_object(self, pk):
-        try:
-            return Bill.objects.get(pk=pk)
-        except Bill.DoesNotExist:
-            raise Http404
+    queryset = Bill.objects.all()
+    serializer_class = BillSerializer
 
-    def get(self, request, pk, format=None):
-        bill = self.get_object(pk)
-        serializer = BillSerializer([bill], context={'request': request}, many=True)
-        return Response({'results': serializer.data})
+
+# class BillDetail(APIView):
+#     """
+#     Retrieve a bill instance.
+#     """
+#     def get_object(self, pk):
+#         try:
+#             return Bill.objects.get(pk=pk)
+#         except Bill.DoesNotExist:
+#             raise Http404
+#
+#     def get(self, request, pk, format=None):
+#         bill = self.get_object(pk)
+#         serializer = BillSerializer([bill], context={'request': request}, many=True)
+#         return Response({'results': serializer.data})
 
 
 class LegislativeSubjectList(generics.ListAPIView):
