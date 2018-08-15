@@ -2,13 +2,19 @@ from .models import *
 from rest_framework import serializers
 
 
+class PolicyAreaShortSerializer(serializers.HyperlinkedModelSerializer):
+    class Meta:
+        model = PolicyArea
+        fields = ('name', 'url')
+
+
 class BillShortSerializer(serializers.HyperlinkedModelSerializer):
     title = serializers.CharField(source='__str__')
-    # TODO: Add policy_area as a field to the Meta
+    policy_area = PolicyAreaShortSerializer()
 
     class Meta:
         model = Bill
-        fields = ('title', 'introduction_date', 'last_modified', 'bill_number', 'congress', 'type', 'url')
+        fields = ('title', 'introduction_date', 'policy_area', 'url')
 
 
 class PartyShortSerializer(serializers.HyperlinkedModelSerializer):
@@ -179,12 +185,6 @@ class LegislativeSubjectSerializer(serializers.ModelSerializer):
             total_white_count += co_white_count + sp_white_count
 
         return {'red_count': total_red_count, 'blue_count': total_blue_count, 'white_count': total_white_count}
-
-
-class PolicyAreaShortSerializer(serializers.HyperlinkedModelSerializer):
-    class Meta:
-        model = PolicyArea
-        fields = ('name', 'url')
 
 
 class PolicyAreaSerializer(serializers.ModelSerializer):

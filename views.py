@@ -162,26 +162,33 @@ class BillDetail(generics.RetrieveAPIView):
 
 
 class LegislativeSubjectList(generics.ListAPIView):
+    """
+    List all legislative subjects.
+    """
     queryset = LegislativeSubject.objects.all()
     serializer_class = LegislativeSubjectShortSerializer
 
 
 class LegislativeSubjectDetail(generics.RetrieveAPIView):
+    """
+    Retrieve a legislative subject instance.
+    """
     queryset = LegislativeSubject.objects.all()
     serializer_class = LegislativeSubjectSerializer
 
-    # def get(self, request, pk, format=None):
-    #     legislative_subject = self.get_object(pk)
-    #     serializer = BillSerializer([legislative_subject], context={'request': request}, many=True)
-    #     return Response({'results': serializer.data})
-
 
 class PolicyAreaList(generics.ListAPIView):
+    """
+    List all policy areas.
+    """
     queryset = PolicyArea.objects.all()
     serializer_class = PolicyAreaShortSerializer
 
 
 class PolicyAreaDetail(generics.RetrieveAPIView):
+    """
+    Retrieve a policy area instance.
+    """
     queryset = PolicyArea.objects.all()
     serializer_class = PolicyAreaSerializer
 
