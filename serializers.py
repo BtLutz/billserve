@@ -143,10 +143,42 @@ class LegislativeSubjectShortSerializer(serializers.HyperlinkedModelSerializer):
 
 class LegislativeSubjectSerializer(serializers.ModelSerializer):
     bills = BillShortSerializer(many=True)
+    support_split = serializers.SerializerMethodField()
 
     class Meta:
         model = LegislativeSubject
-        fields = ('name', 'bills')
+        fields = ('name', 'bills', 'support_split')
+
+    def get_support_split(self, obj):
+        def generate_support_counts(legislators):
+            red_count = blue_count = white_count = 0
+            republican_party = Party.objects.get(abbreviation="R")
+            democratic_party = Party.objects.get(abbreviation="D")
+            independent_party = Party.objects.get(abbreviation="I")
+
+            for legislator in legislators:
+                cosponsor_party = legislator.party
+                if cosponsor_party == republican_party:
+                    red_count += 1
+                elif cosponsor_party == democratic_party:
+                    blue_count += 1
+                elif cosponsor_party == independent_party:
+                    white_count += 1
+                else:
+                    raise ValueError("Unexpected party encountered: {p}".format(p=cosponsor_party))
+            return red_count, blue_count, white_count
+
+        total_red_count = total_blue_count = total_white_count = 0
+
+        for bill in obj.bills.all():
+            co_red_count, co_blue_count, co_white_count = generate_support_counts(bill.co_sponsors.select_subclasses())
+            sp_red_count, sp_blue_count, sp_white_count = generate_support_counts(bill.sponsors.select_subclasses())
+
+            total_red_count += co_red_count + sp_red_count
+            total_blue_count += co_blue_count + sp_blue_count
+            total_white_count += co_white_count + sp_white_count
+
+        return {'red_count': total_red_count, 'blue_count': total_blue_count, 'white_count': total_white_count}
 
 
 class PolicyAreaShortSerializer(serializers.HyperlinkedModelSerializer):
