@@ -203,7 +203,7 @@ class LegislativeSubjectSerializer(serializers.ModelSerializer):
             count_legislator_activities(bill.co_sponsors.select_subclasses())
 
         top_active_legislators = sorted(legislator_activity_counts.items(), key=lambda x: x[1])[:5]
-        return [(p[1], LegislatorListSerializer(instance=p[0], context=self.context).data)
+        return [{'count': p[1], 'legislator': LegislatorListSerializer(instance=p[0], context=self.context).data}
                 for p in top_active_legislators]
 
 
