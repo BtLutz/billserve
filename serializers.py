@@ -156,29 +156,29 @@ class LegislativeSubjectSerializer(serializers.ModelSerializer):
         fields = ('name', 'bills', 'support_split')
 
     def get_support_split(self, obj):
-        def generate_support_counts(legislators):
+        def generate_split(legislators):
             red_count = blue_count = white_count = 0
             republican_party = Party.objects.get(abbreviation="R")
             democratic_party = Party.objects.get(abbreviation="D")
             independent_party = Party.objects.get(abbreviation="I")
 
             for legislator in legislators:
-                cosponsor_party = legislator.party
-                if cosponsor_party == republican_party:
+                legislator_party = legislator.party
+                if legislator_party == republican_party:
                     red_count += 1
-                elif cosponsor_party == democratic_party:
+                elif legislator_party == democratic_party:
                     blue_count += 1
-                elif cosponsor_party == independent_party:
+                elif legislator_party == independent_party:
                     white_count += 1
                 else:
-                    raise ValueError("Unexpected party encountered: {p}".format(p=cosponsor_party))
+                    raise ValueError('Unexpected party encountered: {p}'.format(p=legislator_party))
             return red_count, blue_count, white_count
 
         total_red_count = total_blue_count = total_white_count = 0
 
         for bill in obj.bills.all():
-            co_red_count, co_blue_count, co_white_count = generate_support_counts(bill.co_sponsors.select_subclasses())
-            sp_red_count, sp_blue_count, sp_white_count = generate_support_counts(bill.sponsors.select_subclasses())
+            co_red_count, co_blue_count, co_white_count = generate_split(bill.co_sponsors.select_subclasses())
+            sp_red_count, sp_blue_count, sp_white_count = generate_split(bill.sponsors.select_subclasses())
 
             total_red_count += co_red_count + sp_red_count
             total_blue_count += co_blue_count + sp_blue_count
@@ -208,12 +208,13 @@ class BillSerializer(serializers.ModelSerializer):
     legislative_subjects = LegislativeSubjectShortSerializer(many=True)
     policy_area = PolicyAreaShortSerializer()
     bill_summaries = BillSummarySerializer(many=True)
+    support_splits = serializers.SerializerMethodField()
 
     class Meta:
         model = Bill
         fields = ('sponsors', 'co_sponsors', 'policy_area', 'legislative_subjects', 'related_bills', 'committees',
-                  'originating_body', 'title', 'bill_summaries', 'introduction_date', 'last_modified', 'bill_number',
-                  'congress', 'type', 'cbo_cost_estimate', 'url', 'bill_url')
+                  'originating_body', 'support_splits', 'title', 'bill_summaries', 'introduction_date', 'last_modified',
+                  'bill_number', 'congress', 'type', 'cbo_cost_estimate', 'url', 'bill_url')
         depth = 1
 
     def get_sponsors(self, obj):
@@ -223,6 +224,40 @@ class BillSerializer(serializers.ModelSerializer):
     def get_co_sponsors(self, obj):
         co_sponsors = obj.co_sponsors.select_subclasses()
         return LegislatorListSerializer(co_sponsors, many=True, context=self.context).data
+
+    def get_support_splits(self, obj):
+        class SupportSplit:
+            def __init__(self, red_count, blue_count, white_count):
+                self.red_count = red_count
+                self.blue_count = blue_count
+                self.white_count = white_count
+
+            def as_dict(self):
+                return {'red_count': self.red_count, 'blue_count': self.blue_count, 'white_count': self.white_count}
+
+        def generate_split(legislators):
+            red_count = blue_count = white_count = 0
+            republican_party = Party.objects.get(abbreviation="R")
+            democratic_party = Party.objects.get(abbreviation="D")
+            independent_party = Party.objects.get(abbreviation="I")
+
+            for legislator in legislators:
+                legislator_party = legislator.party
+                if legislator_party == republican_party:
+                    red_count += 1
+                elif legislator_party == democratic_party:
+                    blue_count += 1
+                elif legislator_party == independent_party:
+                    white_count += 1
+                else:
+                    raise ValueError('Unexpected party encountered: {p}'.format(p=legislator_party))
+
+            return SupportSplit(red_count=red_count, blue_count=blue_count, white_count=white_count)
+
+        cosponsorship_split = generate_split(obj.co_sponsors.select_subclasses())
+        sponsorship_split = generate_split(obj.sponsors.select_subclasses())
+
+        return {'cosponsorship_split': cosponsorship_split.as_dict(), 'sponsorship_split': sponsorship_split.as_dict()}
 
 
 class CommitteeSerializer(serializers.ModelSerializer):
