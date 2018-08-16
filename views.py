@@ -453,7 +453,7 @@ def update(request):
         b.last_modified = last_modified_date
         b.save()
         logging.info('Performed initial save for bill {bill_number}'.format(bill_number=bill_number))
-        if depth == 5:
+        if depth == 4:
             return b
         # Parse related object data from the converted XML
         logging.info('Parsing related object data from XML...')
@@ -468,6 +468,16 @@ def update(request):
         policy_area = parse_without_coercion(['policyArea', 'name'], bill_data, url)
         legislative_subjects = parse_and_coerce_to_list(['subjects', 'billSubjects', 'legislativeSubjects'],
                                                         bill_data, url)
+
+        logging.info('Adding legislative subjects to bill')
+        for legislative_subject in legislative_subjects:
+            try:
+                legislative_subject_name = legislative_subject['name']
+            except KeyError as e:
+                raise KeyError('Error parsing name from legislativeSubject at {url}'.format(url=url))
+            logging.info('Processing {legislative_subject_name}'.format(
+                legislative_subject_name=legislative_subject_name))
+            b.legislative_subjects.add(LegislativeSubject.objects.get_or_create(name=legislative_subject_name)[0])
 
         logging.info('Adding sponsors to bill {bill_number}'.format(bill_number=bill_number))
         for sponsor in sponsors:
@@ -585,16 +595,6 @@ def update(request):
             committee = Committee.objects.update_or_create(defaults=defaults, system_code=committee_system_code,
                                                            name=committee_name)[0]
             b.committees.add(committee)
-
-        logging.info('Adding legislative subjects to bill')
-        for legislative_subject in legislative_subjects:
-            try:
-                legislative_subject_name = legislative_subject['name']
-            except KeyError as e:
-                raise KeyError('Error parsing name from legislativeSubject at {url}'.format(url=url))
-            logging.info('Processing {legislative_subject_name}'.format(
-                legislative_subject_name=legislative_subject_name))
-            b.legislative_subjects.add(LegislativeSubject.objects.get_or_create(name=legislative_subject_name)[0])
 
         logging.info('Adding policy area to bill')
         b.policy_area = PolicyArea.objects.get_or_create(name=policy_area)[0] if policy_area else None

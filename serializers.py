@@ -150,10 +150,11 @@ class LegislativeSubjectShortSerializer(serializers.HyperlinkedModelSerializer):
 class LegislativeSubjectSerializer(serializers.ModelSerializer):
     bills = BillShortSerializer(many=True)
     support_split = serializers.SerializerMethodField()
+    active_legislators = serializers.SerializerMethodField()
 
     class Meta:
         model = LegislativeSubject
-        fields = ('name', 'bills', 'support_split')
+        fields = ('name', 'bills', 'support_split', 'active_legislators')
 
     def get_support_split(self, obj):
         def generate_split(legislators):
@@ -185,6 +186,25 @@ class LegislativeSubjectSerializer(serializers.ModelSerializer):
             total_white_count += co_white_count + sp_white_count
 
         return {'red_count': total_red_count, 'blue_count': total_blue_count, 'white_count': total_white_count}
+
+    # Will either this or the above function scale well?
+    def get_active_legislators(self, obj):
+        legislator_activity_counts = {}
+
+        def count_legislator_activities(legislators):
+            for legislator in legislators:
+                if legislator not in legislator_activity_counts:
+                    legislator_activity_counts[legislator] = 1
+                else:
+                    legislator_activity_counts[legislator] += 1
+
+        for bill in obj.bills.all():
+            count_legislator_activities(bill.sponsors.select_subclasses())
+            count_legislator_activities(bill.co_sponsors.select_subclasses())
+
+        top_active_legislators = sorted(legislator_activity_counts.items(), key=lambda x: x[1])[:5]
+        return [(p[1], LegislatorListSerializer(instance=p[0], context=self.context).data)
+                for p in top_active_legislators]
 
 
 class PolicyAreaSerializer(serializers.ModelSerializer):

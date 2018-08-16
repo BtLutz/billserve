@@ -43,6 +43,15 @@ class Legislator(models.Model):
         return self.co_sponsored_bills.all()
 
 
+class LegislativeSubjectActivity(models.Model):
+    activity_type = models.IntegerField(null=True)
+    activity_count = models.IntegerField(default=1)
+    legislative_subject = models.ForeignKey('LegislativeSubject', related_name='activities',
+                                            on_delete=models.CASCADE)
+    legislator = models.ForeignKey('Legislator', related_name='legislative_subject_activities',
+                                   on_delete=models.CASCADE)
+
+
 class Senator(Legislator):
     party = models.ForeignKey('Party', related_name='senators', on_delete=models.SET_NULL, null=True)
     legislative_body = models.ForeignKey('LegislativeBody', related_name='senators', on_delete=models.SET_NULL,
