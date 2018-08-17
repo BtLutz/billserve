@@ -4,13 +4,6 @@ from django.conf.urls import url, include
 from rest_framework.urlpatterns import format_suffix_patterns
 from . import views
 
-# Thoughts:
-# - It would be really interesting to experiment with advanced asynchronous design.
-#   For instance, it sucks to have to wait for my whole Facebook feed to load before I can scroll.
-#   Instead of requesting all bills a senator has co-sponsored at once (could be thousands), it'd be cool to get a small
-#   data dump containing the basic data about the bill, display that to the user, and then make individual asynchronous
-#   requests back to the server for each bill's full set of data. When I get a request back, I populate it.
-#   It'd work kind of like the volley library for Android.
 
 # API endpoints
 urlpatterns = format_suffix_patterns([

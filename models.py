@@ -1,5 +1,5 @@
 from django.db import models
-from model_utils.managers import InheritanceManager
+from polymorphic.models import PolymorphicModel
 
 
 class Party(models.Model):
@@ -27,11 +27,10 @@ class District(models.Model):
         return '{state}-{number}'.format(state=self.state.abbreviation, number=self.number)
 
 
-class Legislator(models.Model):
+class Legislator(PolymorphicModel):
     lis_id = models.IntegerField()
     first_name = models.CharField(max_length=100)
     last_name = models.CharField(max_length=100)
-    objects = InheritanceManager()
 
     def full_name(self):
         return '{first_name} {last_name}'.format(first_name=self.first_name, last_name=self.last_name)
@@ -51,6 +50,13 @@ class LegislativeSubjectActivity(models.Model):
     legislator = models.ForeignKey('Legislator', related_name='legislative_subject_activities',
                                    on_delete=models.CASCADE)
 
+
+class LegislativeSubjectSupportSplit(models.Model):
+    red_count = models.IntegerField()
+    blue_count = models.IntegerField()
+    white_count = models.IntegerField()
+    legislative_subject = models.ForeignKey('LegislativeSubject', related_name='support_split',
+                                            on_delete=models.CASCADE)
 
 class Senator(Legislator):
     party = models.ForeignKey('Party', related_name='senators', on_delete=models.SET_NULL, null=True)

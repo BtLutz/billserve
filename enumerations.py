@@ -1,6 +1,6 @@
 from enum import Enum
 
 
-class ActivityType(Enum):
+class LegislativeSubjectActivityType(Enum):
     sponsorship = 1
     cosponsorship = 2

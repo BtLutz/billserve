@@ -1,5 +1,6 @@
 from .models import *
 from rest_framework import serializers
+from billserve.enumerations import LegislativeSubjectActivityType
 
 
 class PolicyAreaShortSerializer(serializers.HyperlinkedModelSerializer):
@@ -149,12 +150,12 @@ class LegislativeSubjectShortSerializer(serializers.HyperlinkedModelSerializer):
 
 class LegislativeSubjectSerializer(serializers.ModelSerializer):
     bills = BillShortSerializer(many=True)
-    support_split = serializers.SerializerMethodField()
+    # support_split = serializers.SerializerMethodField()
     active_legislators = serializers.SerializerMethodField()
 
     class Meta:
         model = LegislativeSubject
-        fields = ('name', 'bills', 'support_split', 'active_legislators')
+        fields = ('name', 'bills', 'active_legislators')
 
     def get_support_split(self, obj):
         def generate_split(legislators):
@@ -187,24 +188,21 @@ class LegislativeSubjectSerializer(serializers.ModelSerializer):
 
         return {'red_count': total_red_count, 'blue_count': total_blue_count, 'white_count': total_white_count}
 
-    # Will either this or the above function scale well?
     def get_active_legislators(self, obj):
-        legislator_activity_counts = {}
+        def json_list_for(activities):
+            return [{'count': lsa.activity_count,
+                     'legislator': LegislatorListSerializer(instance=lsa.legislator, context=self.context).data
+                     } for lsa in activities]
 
-        def count_legislator_activities(legislators):
-            for legislator in legislators:
-                if legislator not in legislator_activity_counts:
-                    legislator_activity_counts[legislator] = 1
-                else:
-                    legislator_activity_counts[legislator] += 1
+        legislative_subject_sponsorships = obj.activities.filter(
+            activity_type=LegislativeSubjectActivityType.sponsorship.value).order_by('-activity_count')[:5]
+        legislative_subject_cosponsorships = obj.activities.filter(
+            activity_type=LegislativeSubjectActivityType.cosponsorship.value).order_by('-activity_count')[:5]
 
-        for bill in obj.bills.all():
-            count_legislator_activities(bill.sponsors.select_subclasses())
-            count_legislator_activities(bill.co_sponsors.select_subclasses())
+        return {'top_cosponsors': json_list_for(legislative_subject_cosponsorships),
+                'top_sponsors': json_list_for(legislative_subject_sponsorships)
+                }
 
-        top_active_legislators = sorted(legislator_activity_counts.items(), key=lambda x: x[1])[:5]
-        return [{'count': p[1], 'legislator': LegislatorListSerializer(instance=p[0], context=self.context).data}
-                for p in top_active_legislators]
 
 
 class PolicyAreaSerializer(serializers.ModelSerializer):

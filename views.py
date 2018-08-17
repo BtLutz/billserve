@@ -9,6 +9,7 @@ from rest_framework.views import APIView
 
 from billserve.models import *
 from billserve.serializers import *
+from billserve.enumerations import LegislativeSubjectActivityType
 
 import urllib3
 import certifi
@@ -109,7 +110,7 @@ class LegislatorList(generics.ListAPIView):
     """
     List all legislators.
     """
-    queryset = Legislator.objects.select_subclasses()
+    queryset = Legislator.objects.all()
     serializer_class = LegislatorListSerializer
 
 
@@ -402,6 +403,7 @@ def update(request):
         :param url: The URL at which the bill data can be found
         :param b: The bill object to populate, if it already exists
         :param last_modified_string: A string representing the last time a bill was modified on govinfo
+        :param depth: Tracks how far the spider has gone
         :return: The updated bill
         """
         # Coerce the last_modified_string into a Date object to see if we actually need to process this update.
@@ -453,7 +455,7 @@ def update(request):
         b.last_modified = last_modified_date
         b.save()
         logging.info('Performed initial save for bill {bill_number}'.format(bill_number=bill_number))
-        if depth == 4:
+        if depth == 5:
             return b
         # Parse related object data from the converted XML
         logging.info('Parsing related object data from XML...')
@@ -473,7 +475,7 @@ def update(request):
         for legislative_subject in legislative_subjects:
             try:
                 legislative_subject_name = legislative_subject['name']
-            except KeyError as e:
+            except KeyError:
                 raise KeyError('Error parsing name from legislativeSubject at {url}'.format(url=url))
             logging.info('Processing {legislative_subject_name}'.format(
                 legislative_subject_name=legislative_subject_name))
@@ -508,6 +510,16 @@ def update(request):
 
             if not Sponsorship.objects.filter(legislator=legislator, bill=b).exists():
                 Sponsorship.objects.create(legislator=legislator, bill=b)
+
+            logging.info('Updating legislative subject activity')
+
+            for legislative_subject in b.legislative_subjects.all():
+                legislative_subject_activity, created = LegislativeSubjectActivity.objects.get_or_create(
+                    legislative_subject=legislative_subject, legislator=legislator,
+                    activity_type=LegislativeSubjectActivityType.sponsorship.value)
+                if not created:
+                    legislative_subject_activity.activity_count += 1
+                    legislative_subject_activity.save()
 
         logging.info('Adding co-sponsors to bill')
         for co_sponsor in co_sponsors:
@@ -553,6 +565,13 @@ def update(request):
                 CoSponsorship.objects.create(legislator=legislator, bill=b,
                                              co_sponsorship_date=co_sponsorship_date,
                                              is_original_cosponsor=is_original_co_sponsor)
+            for legislative_subject in b.legislative_subjects.all():
+                legislative_subject_activity, created = LegislativeSubjectActivity.objects.get_or_create(
+                    legislative_subject=legislative_subject, legislator=legislator,
+                    activity_type=LegislativeSubjectActivityType.cosponsorship.value)
+                if not created:
+                    legislative_subject_activity.activity_count += 1
+                    legislative_subject_activity.save()
 
         logging.info('Adding actions to bill')
         for action in actions:
