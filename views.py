@@ -19,8 +19,6 @@ import xmltodict
 import datetime
 from pytz import utc
 
-from pdb import set_trace
-
 # Note: Possible ways to make money...
 # 1. Sell wholesale yearly access to congresspeople (i.e. $20K for unlimited queries)
 # 2. Sell per-unit queries (i.e. $0.05 per record accessed / $5 per query / etc.)
@@ -40,6 +38,7 @@ from pdb import set_trace
 # Everyone else should get generic tokens that allow access to the API methods.
 # TODO: Got an exception when parsing the 987 bill. The exception happened when I tried to save a char field that was
 # longer than 50 characters. It happened when I was parsing live on Heroku.
+
 
 @api_view(['GET'])
 def api_root(request, format=None):
@@ -200,6 +199,9 @@ def update(request):
     :param request: A request object
     :return: None
     """
+
+    MAX_DEPTH = 5
+
     def fix_name(n):
         """
         Convert all uppercase string to have the first letter capitalized and the rest of the letters lowercase.
@@ -209,26 +211,27 @@ def update(request):
         assert isinstance(n, ''.__class__), 'parameter n is not a string: {n}'.format(n=n)
         return "{0}{1}".format(n[0].upper(), n[1:].lower())
 
-    def find_party(pa):
+    def find_party(party_abbreviation):
         """
         Looks up a political party based on its abbreviation. Soon to be deprecated in favor of initial data.
-        :param pa:
-        :return:
+        :param party_abbreviation: A string containing a political party abbreviation
+        :return: A Party model instance
         """
         # TODO: this -> https://docs.djangoproject.com/en/2.0/howto/initial-data/
-        if pa == 'R':
+        if party_abbreviation == 'R':
             return Party.objects.get_or_create(abbreviation='R', name='Republican')[0]
-        elif pa == 'D':
+        elif party_abbreviation == 'D':
             return Party.objects.get_or_create(abbreviation='D', name='Democratic')[0]
-        else:
-            logging.warning('Encountered unknown party abbreviation: {n}. Logging as Independent.'.format(n=pa))
+        elif party_abbreviation == 'I':
             return Party.objects.get_or_create(abbreviation='I', name='Independent')[0]
+        else:
+            raise ValueError('Unexpected party abbreviation found: {p}'.format(p=party_abbreviation))
 
-    def find_state(sa):
+    def find_state(state_abbreviation):
         """
         Looks up a state based on its abbreviation. Soon to be deprecated in favor of initial data.
-        :param sa:
-        :return:
+        :param state_abbreviation: A string keyed in the state_dict dictionary
+        :return: A state model instance
         """
         # TODO: this -> https://docs.djangoproject.com/en/2.0/howto/initial-data/
         state_dict = {'AL': 'Alabama',
@@ -292,10 +295,10 @@ def update(request):
                       'MH': 'Marshall Island',
                       'PW': 'Palau'}
         try:
-            state_name = state_dict[sa]
+            state_name = state_dict[state_abbreviation]
         except KeyError as e:
             raise KeyError('Unknown state abbreviation found: {e}'.format(e=e))
-        return State.objects.get_or_create(abbreviation=sa, name=state_name)[0]
+        return State.objects.get_or_create(abbreviation=state_abbreviation, name=state_name)[0]
 
     def parse_without_coercion(fields, data, url):
         """
@@ -400,35 +403,67 @@ def update(request):
     def update_legislative_subject_activity(legislative_subject, legislator, activity_type):
         logging.info('Updating legislative subject activity for {ls}'.format(ls=legislative_subject.name))
         legislative_subject_activity, created = LegislativeSubjectActivity.objects.get_or_create(
-            legislative_subject=legislative_subject, legislator=legislator,activity_type=activity_type)
+            legislative_subject=legislative_subject, legislator=legislator,activity_type=activity_type.value)
         if not created:
             legislative_subject_activity.activity_count += 1
             legislative_subject_activity.save()
 
-    def update_support_split(support_split, party):
+    def update_support_split(support_split, legislator):
         logging.info('Updating support split for {ls}'.format(ls=support_split.legislative_subject.name))
-        democratic_party = Party.objects.get(abbreviation='D')
-        republican_party = Party.objects.get(abbreviation='R')
-        independent_party = Party.objects.get(abbreviation='I')
-        if party == democratic_party:
+        democratic_party = find_party(party_abbreviation='D')
+        republican_party = find_party(party_abbreviation='R')
+        independent_party = find_party(party_abbreviation='I')
+
+        legislator_party = legislator.party
+        if legislator_party == democratic_party:
             support_split.blue_count += 1
-        elif party == republican_party:
+        elif legislator_party == republican_party:
             support_split.red_count += 1
-        elif party == independent_party:
+        elif legislator_party == independent_party:
             support_split.white_count += 1
         else:
-            raise ValueError('Unexpected party encountered: {p}'.format(p=party))
+            raise ValueError('Unexpected party encountered: {p}'.format(p=legislator_party))
         support_split.save()
 
-    def parse_fields_from_json(fields, json, model_string, url):
+    def parse_legislator_from_json(json, model_string, url, extra_fields=None):
+        fields = ['firstName', 'lastName', 'fullName', ['identifiers', 'lisID'], 'state', 'party']
+
+        # If a client has included extra fields they're expecting on the legislator, include them in required fields.
+        if extra_fields:
+            fields.extend(extra_fields)
+
+        # District is present on representatives but not on senators. Therefore it's an optional field.
+        optional_fields = ['district']
+        legislator_fields = verify_fields_from_json(
+            fields=fields, json=json, model_string=model_string, url=url, optional_fields=optional_fields)
+
+        # Fixing certain fields so that they return to the client in the right format.
+        legislator_fields['firstName'] = fix_name(legislator_fields['firstName'])
+        legislator_fields['lastName'] = fix_name(legislator_fields['lastName'])
+        legislator_fields['lisID'] = int(legislator_fields['lisID'])
+
+        return legislator_fields
+
+    def verify_fields_from_json(fields, json, model_string, url, optional_fields=None):
         d = {}
         try:
             for field in fields:
-                d[field] = json[field]
+                field_name = field if isinstance(field, ''.__class__) else field[-1]
+                d[field_name] = parse_without_coercion(field, json, url)
         except KeyError as e:
             raise KeyError('Error parsing field from {model_string} at {url}: {field}'
                            .format(model_string=model_string, url=url, field=field))
+        if optional_fields:
+            try:
+                for field in optional_fields:
+                    d[field] = parse_without_coercion(field, json, url)
+            except KeyError:
+                d[field] = None
         return d
+
+    def generate_related_bill_url(congress, bill_type, number):
+        return 'https://www.govinfo.gov/bulkdata/BILLSTATUS/{c}/{t}/BILLSTATUS-{c}{t}{n}.xml'\
+            .format(c=congress, t=bill_type.lower(), n=number)
 
     def populate_bill(url, b=None, last_modified_string=None, depth=0):
         """
@@ -446,9 +481,11 @@ def update(request):
 
         # If we don't have a bill yet, look to see if one exists at this url. If it does and doesn't need updating,
         # just return it.
-        if not b:
-            b, created = Bill.objects.get_or_create(bill_url=url)
-            if not created and b.last_modified == last_modified_date:
+        if not b and not Bill.objects.filter(bill_url=url):
+            b = Bill()
+        elif not b:
+            b = Bill.objects.get(bill_url=url)
+            if b.last_modified == last_modified_date and b.legislative_subjects.exists():
                 logging.info('Found existing bill {number} to return'.format(number=b.bill_number))
                 return b
 
@@ -486,10 +523,9 @@ def update(request):
         b.congress = bill_congress
         b.introduction_date = introduction_date
         b.last_modified = last_modified_date
+
         b.save()
-        logging.info('Performed initial save for bill {bill_number}'.format(bill_number=bill_number))
-        if depth == 5:
-            return b
+
         # Parse related object data from the converted XML
         logging.info('Parsing related object data from XML...')
         sponsors = parse_and_coerce_to_list('sponsors', bill_data, url)
@@ -504,16 +540,22 @@ def update(request):
         legislative_subjects = parse_and_coerce_to_list(['subjects', 'billSubjects', 'legislativeSubjects'],
                                                         bill_data, url)
 
+        # Getting or creating legislative subjects from the document JSON
         logging.info('Adding legislative subjects to bill')
         for legislative_subject in legislative_subjects:
-            try:
-                legislative_subject_name = legislative_subject['name']
-            except KeyError:
-                raise KeyError('Error parsing name from legislativeSubject at {url}'.format(url=url))
+            fields = ['name']
+            legislative_subject = verify_fields_from_json(
+                fields=fields, json=legislative_subject, model_string='legislative subject', url=url)
+
+            legislative_subject_name = legislative_subject['name']
+
             logging.info('Processing {legislative_subject_name}'.format(
                 legislative_subject_name=legislative_subject_name))
             b.legislative_subjects.add(LegislativeSubject.objects.get_or_create(name=legislative_subject_name)[0])
 
+        # Create or get support split objects for all legislative subjects associated with the bill. We do it here
+        # because the same support splits are used for sponsors and cosponsors. Otherwise we'd have to query them
+        # twice.
         logging.info('Creating or getting support splits for legislative subjects')
         legislative_subject_support_splits = {}
         for legislative_subject in b.legislative_subjects.all():
@@ -523,75 +565,61 @@ def update(request):
                          .format(ls=legislative_subject.name))
             legislative_subject_support_splits[legislative_subject] = legislative_subject_support_split
 
+        # Getting or creating sponsors from the document JSON
         logging.info('Adding sponsors to bill {bill_number}'.format(bill_number=bill_number))
         for sponsor in sponsors:
-            try:
-                first_name = fix_name(sponsor['firstName'])
-                last_name = fix_name(sponsor['lastName'])
-                full_name = sponsor['fullName']
-                lis_id = int(sponsor['identifiers']['lisID'])
-                state_abbreviation = sponsor['state']
-                party_abbreviation = sponsor['party']
-            except KeyError as e:
-                raise KeyError('Error parsing data from sponsor in {url}: {e}'.format(url=url, e=e))
-            except TypeError as e:
-                raise TypeError('Most likely a missing field on sponsor in {url}: {e}'.format(url=url, e=e))
-            logging.info('Processing sponsor {full_name}'.format(full_name=full_name))
-            try:
-                district_number = sponsor['district']
-            except KeyError:
-                district_number = None
+            sponsor = parse_legislator_from_json(json=sponsor, model_string='sponsor', url=url)
 
-            logging.info('Done parsing info for sponsor {full_name}. Moving to related objects.'
-                         .format(full_name=full_name))
+            first_name = sponsor['firstName']
+            last_name = sponsor['lastName']
+            lis_id = sponsor['lisID']
+            state_abbreviation = sponsor['state']
+            party_abbreviation = sponsor['party']
+            district_number = sponsor['district']
 
-            state = find_state(state_abbreviation)
-            party = find_party(party_abbreviation)
+            state = find_state(state_abbreviation=state_abbreviation)
+            party = find_party(party_abbreviation=party_abbreviation)
 
             legislator = get_legislator(lis_id, party, state, first_name, last_name, district_number)
 
             if not Sponsorship.objects.filter(legislator=legislator, bill=b).exists():
                 Sponsorship.objects.create(legislator=legislator, bill=b)
 
+            activity_type = LegislativeSubjectActivityType.sponsorship
             for legislative_subject in b.legislative_subjects.all():
-                update_legislative_subject_activity(
-                    legislative_subject, legislator,LegislativeSubjectActivityType.sponsorship)
-                update_support_split(legislative_subject_support_splits[legislative_subject], party)
+                update_legislative_subject_activity(legislative_subject, legislator, activity_type)
+                update_support_split(legislative_subject_support_splits[legislative_subject], legislator)
 
+        # Getting or creating cosponsors from the document JSON
         logging.info('Adding co-sponsors to bill')
         for co_sponsor in co_sponsors:
-            # Parse field from dict
-            try:
-                first_name = fix_name(co_sponsor['firstName'])
-                last_name = fix_name(co_sponsor['lastName'])
-                full_name = co_sponsor['fullName']
-                lis_id = co_sponsor['identifiers']['lisID']
-                state_string = co_sponsor['state']
-                party_string = co_sponsor['party']
-                is_original_co_sponsor_string = co_sponsor['isOriginalCosponsor']
-                co_sponsorship_date_string = co_sponsor['sponsorshipDate']
-            except KeyError as e:
-                raise KeyError('Error parsing field from co_sponsor at {url}: {e}'.format(url=url, e=e))
-            logging.info('Processing co-sponsor {full_name}'.format(full_name=full_name))
-            try:
-                district_number = co_sponsor['district']
-            except KeyError:
-                district_number = None
-            logging.info('Done parsing info for cosponsor {full_name}. Moving to gather related objects.'
-                         .format(full_name=full_name))
+            # Cosponsors have some extra fields that sponsors don't have. Instead of writing another function or
+            # parsing the extra fields before the call to parse_legislator_from_json, we can include them as a parameter
+            # and let the function call deal with error handling.
+            extra_fields = ['isOriginalCosponsor', 'sponsorshipDate']
 
-            # Lookups based on fields
-            try:
-                state = find_state(state_string)
-            except KeyError as e:
-                raise KeyError('Error parsing state from cosponsor {full_name} on {url}'.format(full_name=full_name,
-                                                                                                url=url))
-            party = find_party(party_string)
+            cosponsor = parse_legislator_from_json(
+                json=co_sponsor, model_string='cosponsor', url=url, extra_fields=extra_fields)
+
+            first_name = cosponsor['firstName']
+            last_name = cosponsor['lastName']
+            lis_id = cosponsor['lisID']
+            state_abbreviation = cosponsor['state']
+            party_abbreviation = cosponsor['party']
+            district_number = cosponsor['district']
+            is_original_co_sponsor_string = cosponsor['isOriginalCosponsor']
+            co_sponsorship_date_string = cosponsor['sponsorshipDate']
+
+            state = find_state(state_abbreviation=state_abbreviation)
+            party = find_party(party_abbreviation=party_abbreviation)
+
             co_sponsorship_date = format_date(co_sponsorship_date_string, '%Y-%m-%d', 'cosponsorshipDate', url)
 
+            # Is original cosponsor is a boolean value of yes or no. If it's something other than that then there's
+            # probably an error in the data I was given.
             if is_original_co_sponsor_string not in {'True', 'False'}:
                 raise ValueError('Unexpected string found for isOriginalCosponsor in {url}: {string}'
-                                 .format(url=url,string=is_original_co_sponsor_string))
+                                 .format(url=url, string=is_original_co_sponsor_string))
             is_original_co_sponsor = True if is_original_co_sponsor_string == 'True' else False
 
             legislator = get_legislator(lis_id, party, state, first_name, last_name, district_number)
@@ -606,40 +634,42 @@ def update(request):
             for legislative_subject in b.legislative_subjects.all():
                 update_legislative_subject_activity(
                     legislative_subject, legislator, LegislativeSubjectActivityType.cosponsorship)
-                update_support_split(legislative_subject_support_splits[legislative_subject], party)
+                update_support_split(legislative_subject_support_splits[legislative_subject], legislator)
 
+        # Getting or creating actions from the document JSON
         logging.info('Adding actions to bill')
         for action in actions:
-            try:
-                action_date_string = action['actionDate']
-                committee_name_string = parse_without_coercion(['committee', 'name'], action, url)
-                committee_system_code = parse_without_coercion(['committee', 'systemCode'], action, url)
-                action_text = action['text']
-                action_type = action['type']
-            except KeyError as e:
-                raise KeyError('Error parsing field from action at {url}: {e}'.format(url=url, e=e))
+            fields = ['actionDate', ['committee', 'name'], ['committee', 'systemCode'], 'text', 'type']
+            action = verify_fields_from_json(fields=fields, json=action, model_string='action', url=url)
+
+            committee_name_string = action['name']
+            committee_system_code = action['systemCode']
+            action_text = action['text']
+            action_type = action['type']
+            action_date_string = action['actionDate']
+
             action_date = format_date(action_date_string, '%Y-%m-%d', 'actionDate', url)
 
             logging.info('Processing action {action_text}'.format(action_text=action_text))
 
             committee = Committee.objects.get_or_create(
-                name=committee_name_string, system_code=committee_system_code)[0] \
-                if committee_name_string else None
+                name=committee_name_string, system_code=committee_system_code)[0] if committee_name_string else None
 
-            if not Action.objects.filter(committee=committee, bill=b, action_text=action_text,
-                                         action_type=action_type, action_date=action_date):
-                Action.objects.create(committee=committee, bill=b, action_text=action_text,
-                                      action_type=action_type, action_date=action_date)
+            if not Action.objects.filter(committee=committee, bill=b, action_text=action_text, action_type=action_type,
+                                         action_date=action_date):
+                Action.objects.create(committee=committee, bill=b, action_text=action_text, action_type=action_type,
+                                      action_date=action_date)
 
+        # Getting or creating committees from the document JSON
         logging.info('Adding committees to bill')
         for committee in committees:
-            try:
-                committee_name = committee['name']
-                committee_type = committee['type']
-                committee_chamber_string = committee['chamber']
-                committee_system_code = committee['systemCode']
-            except KeyError as e:
-                raise KeyError('Error parsing field from committee at {url}: {e}'.format(url=url, e=e))
+            fields = ['name', 'type', 'chamber', 'systemCode']
+            committee = verify_fields_from_json(fields=fields, json=committee, model_string='committee', url=url)
+
+            committee_name = committee['name']
+            committee_type = committee['type']
+            committee_chamber_string = committee['chamber']
+            committee_system_code = committee['systemCode']
 
             logging.info('Processing committee {committee_name}'.format(committee_name=committee_name))
 
@@ -650,18 +680,21 @@ def update(request):
                                                            name=committee_name)[0]
             b.committees.add(committee)
 
+        # Getting or creating a policy area from the document JSON
         logging.info('Adding policy area to bill')
         b.policy_area = PolicyArea.objects.get_or_create(name=policy_area)[0] if policy_area else None
 
+        # Getting or creating bill summaries from the document JSON
         logging.info('Adding bill summaries to bill')
         for bill_summary in bill_summaries:
-            try:
-                bill_summary_name = bill_summary['name']
-                bill_summary_action_date_string = bill_summary['actionDate']
-                bill_summary_text = bill_summary['text']
-                bill_summary_action_description = bill_summary['actionDesc']
-            except KeyError as e:
-                raise KeyError('Error parsing field from bill_summary at {url}: {e}'.format(url=url, e=e))
+            fields = ['name', 'actionDate', 'text', 'actionDesc']
+            bill_summary = verify_fields_from_json(
+                fields=fields, json=bill_summary, model_string='bill summary', url=url)
+
+            bill_summary_name = bill_summary['name']
+            bill_summary_action_date_string = bill_summary['actionDate']
+            bill_summary_text = bill_summary['text']
+            bill_summary_action_description = bill_summary['actionDesc']
 
             logging.info('Processing {bill_summary_name}'.format(bill_summary_name=bill_summary_name))
 
@@ -681,22 +714,31 @@ def update(request):
             b.originating_body = LegislativeBody.objects.get_or_create(name='House of Representatives',
                                                                        abbreviation='HR')[0]
         logging.info('Saving bill {bill_number}'.format(bill_number=b.bill_number))
+
+        # We save right here in case an exception is encountered while handling related bills. In that case we'll
+        # at least have a full copy of this bill.
         b.save()
 
+        if depth == MAX_DEPTH:
+            return b
+
+        # Getting or creating related bills from the document JSON
         logging.info('Adding related bills to {bill_number}'.format(bill_number=b.bill_number))
         for related_bill in related_bills:
-            try:
-                related_bill_type = related_bill['type']
-                related_bill_congress = related_bill['congress']
-                related_bill_number = related_bill['number']
-            except KeyError as e:
-                raise KeyError('Error parsing field from related_bill in {url}: {e}'.format(url=url, e=e))
+            fields = ['type', 'congress', 'number']
+            related_bill = verify_fields_from_json(
+                fields=fields, json=related_bill, model_string='related bill', url=url)
+
+            related_bill_type = related_bill['type']
+            related_bill_congress = related_bill['congress']
+            related_bill_number = related_bill['number']
 
             logging.info('Processing related bill {bill_number}'.format(bill_number=related_bill_number))
-
             related_bill_url = \
                 'https://www.govinfo.gov/bulkdata/BILLSTATUS/{congress}/{type}/BILLSTATUS-{congress}{type}{number}.xml'\
                 .format(congress=related_bill_congress, type=related_bill_type.lower(), number=related_bill_number)
+            # related_bill_url = generate_related_bill_url(
+            #     congress=related_bill_congress, bill_type=related_bill_type, number=related_bill_number)
             related_bill, created = Bill.objects.get_or_create(bill_url=related_bill_url)
 
             if created:

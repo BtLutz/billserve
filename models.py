@@ -52,9 +52,9 @@ class LegislativeSubjectActivity(models.Model):
 
 
 class LegislativeSubjectSupportSplit(models.Model):
-    red_count = models.IntegerField()
-    blue_count = models.IntegerField()
-    white_count = models.IntegerField()
+    red_count = models.IntegerField(default=0)
+    blue_count = models.IntegerField(default=0)
+    white_count = models.IntegerField(default=0)
     legislative_subject = models.ForeignKey('LegislativeSubject', related_name='support_split',
                                             on_delete=models.CASCADE)
 
