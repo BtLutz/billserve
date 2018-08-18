@@ -397,6 +397,39 @@ def update(request):
             logging.info(message)
             return representative
 
+    def update_legislative_subject_activity(legislative_subject, legislator, activity_type):
+        logging.info('Updating legislative subject activity for {ls}'.format(ls=legislative_subject.name))
+        legislative_subject_activity, created = LegislativeSubjectActivity.objects.get_or_create(
+            legislative_subject=legislative_subject, legislator=legislator,activity_type=activity_type)
+        if not created:
+            legislative_subject_activity.activity_count += 1
+            legislative_subject_activity.save()
+
+    def update_support_split(support_split, party):
+        logging.info('Updating support split for {ls}'.format(ls=support_split.legislative_subject.name))
+        democratic_party = Party.objects.get(abbreviation='D')
+        republican_party = Party.objects.get(abbreviation='R')
+        independent_party = Party.objects.get(abbreviation='I')
+        if party == democratic_party:
+            support_split.blue_count += 1
+        elif party == republican_party:
+            support_split.red_count += 1
+        elif party == independent_party:
+            support_split.white_count += 1
+        else:
+            raise ValueError('Unexpected party encountered: {p}'.format(p=party))
+        support_split.save()
+
+    def parse_fields_from_json(fields, json, model_string, url):
+        d = {}
+        try:
+            for field in fields:
+                d[field] = json[field]
+        except KeyError as e:
+            raise KeyError('Error parsing field from {model_string} at {url}: {field}'
+                           .format(model_string=model_string, url=url, field=field))
+        return d
+
     def populate_bill(url, b=None, last_modified_string=None, depth=0):
         """
         Populates a bill object with data.
@@ -481,6 +514,15 @@ def update(request):
                 legislative_subject_name=legislative_subject_name))
             b.legislative_subjects.add(LegislativeSubject.objects.get_or_create(name=legislative_subject_name)[0])
 
+        logging.info('Creating or getting support splits for legislative subjects')
+        legislative_subject_support_splits = {}
+        for legislative_subject in b.legislative_subjects.all():
+            legislative_subject_support_split = LegislativeSubjectSupportSplit.objects.get_or_create(
+                legislative_subject=legislative_subject)[0]
+            logging.info('Legislative subject support split {ls} found or created successfully'
+                         .format(ls=legislative_subject.name))
+            legislative_subject_support_splits[legislative_subject] = legislative_subject_support_split
+
         logging.info('Adding sponsors to bill {bill_number}'.format(bill_number=bill_number))
         for sponsor in sponsors:
             try:
@@ -500,7 +542,7 @@ def update(request):
             except KeyError:
                 district_number = None
 
-            logging.info('Done parsing info for sponsor {full_name}. Moving to gather related objects.'
+            logging.info('Done parsing info for sponsor {full_name}. Moving to related objects.'
                          .format(full_name=full_name))
 
             state = find_state(state_abbreviation)
@@ -511,15 +553,10 @@ def update(request):
             if not Sponsorship.objects.filter(legislator=legislator, bill=b).exists():
                 Sponsorship.objects.create(legislator=legislator, bill=b)
 
-            logging.info('Updating legislative subject activity')
-
             for legislative_subject in b.legislative_subjects.all():
-                legislative_subject_activity, created = LegislativeSubjectActivity.objects.get_or_create(
-                    legislative_subject=legislative_subject, legislator=legislator,
-                    activity_type=LegislativeSubjectActivityType.sponsorship.value)
-                if not created:
-                    legislative_subject_activity.activity_count += 1
-                    legislative_subject_activity.save()
+                update_legislative_subject_activity(
+                    legislative_subject, legislator,LegislativeSubjectActivityType.sponsorship)
+                update_support_split(legislative_subject_support_splits[legislative_subject], party)
 
         logging.info('Adding co-sponsors to bill')
         for co_sponsor in co_sponsors:
@@ -565,13 +602,11 @@ def update(request):
                 CoSponsorship.objects.create(legislator=legislator, bill=b,
                                              co_sponsorship_date=co_sponsorship_date,
                                              is_original_cosponsor=is_original_co_sponsor)
+
             for legislative_subject in b.legislative_subjects.all():
-                legislative_subject_activity, created = LegislativeSubjectActivity.objects.get_or_create(
-                    legislative_subject=legislative_subject, legislator=legislator,
-                    activity_type=LegislativeSubjectActivityType.cosponsorship.value)
-                if not created:
-                    legislative_subject_activity.activity_count += 1
-                    legislative_subject_activity.save()
+                update_legislative_subject_activity(
+                    legislative_subject, legislator, LegislativeSubjectActivityType.cosponsorship)
+                update_support_split(legislative_subject_support_splits[legislative_subject], party)
 
         logging.info('Adding actions to bill')
         for action in actions:

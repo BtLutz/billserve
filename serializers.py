@@ -200,8 +200,7 @@ class LegislativeSubjectSerializer(serializers.ModelSerializer):
             activity_type=LegislativeSubjectActivityType.cosponsorship.value).order_by('-activity_count')[:5]
 
         return {'top_cosponsors': json_list_for(legislative_subject_cosponsorships),
-                'top_sponsors': json_list_for(legislative_subject_sponsorships)
-                }
+                'top_sponsors': json_list_for(legislative_subject_sponsorships)}
 
 
 
