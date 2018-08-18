@@ -55,8 +55,9 @@ class LegislativeSubjectSupportSplit(models.Model):
     red_count = models.IntegerField(default=0)
     blue_count = models.IntegerField(default=0)
     white_count = models.IntegerField(default=0)
-    legislative_subject = models.ForeignKey('LegislativeSubject', related_name='support_split',
-                                            on_delete=models.CASCADE)
+    legislative_subject = models.OneToOneField('LegislativeSubject', related_name='support_split',
+                                               on_delete=models.CASCADE)
+
 
 class Senator(Legislator):
     party = models.ForeignKey('Party', related_name='senators', on_delete=models.SET_NULL, null=True)
@@ -173,6 +174,10 @@ class LegislativeSubject(models.Model):
 
     def __str__(self):
         return self.name
+
+    def delete(self):
+        self.activities.all().delete()
+        super.delete()
 
 
 class Action(models.Model):

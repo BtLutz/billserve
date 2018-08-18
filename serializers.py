@@ -148,45 +148,20 @@ class LegislativeSubjectShortSerializer(serializers.HyperlinkedModelSerializer):
         fields = ('name', 'url')
 
 
+class LegislativeSubjectSupportSplitSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = LegislativeSubjectSupportSplit
+        fields = ('red_count', 'blue_count', 'white_count')
+
+
 class LegislativeSubjectSerializer(serializers.ModelSerializer):
     bills = BillShortSerializer(many=True)
-    # support_split = serializers.SerializerMethodField()
+    support_split = LegislativeSubjectSupportSplitSerializer()
     active_legislators = serializers.SerializerMethodField()
 
     class Meta:
         model = LegislativeSubject
-        fields = ('name', 'bills', 'active_legislators')
-
-    def get_support_split(self, obj):
-        def generate_split(legislators):
-            red_count = blue_count = white_count = 0
-            republican_party = Party.objects.get(abbreviation="R")
-            democratic_party = Party.objects.get(abbreviation="D")
-            independent_party = Party.objects.get(abbreviation="I")
-
-            for legislator in legislators:
-                legislator_party = legislator.party
-                if legislator_party == republican_party:
-                    red_count += 1
-                elif legislator_party == democratic_party:
-                    blue_count += 1
-                elif legislator_party == independent_party:
-                    white_count += 1
-                else:
-                    raise ValueError('Unexpected party encountered: {p}'.format(p=legislator_party))
-            return red_count, blue_count, white_count
-
-        total_red_count = total_blue_count = total_white_count = 0
-
-        for bill in obj.bills.all():
-            co_red_count, co_blue_count, co_white_count = generate_split(bill.co_sponsors.select_subclasses())
-            sp_red_count, sp_blue_count, sp_white_count = generate_split(bill.sponsors.select_subclasses())
-
-            total_red_count += co_red_count + sp_red_count
-            total_blue_count += co_blue_count + sp_blue_count
-            total_white_count += co_white_count + sp_white_count
-
-        return {'red_count': total_red_count, 'blue_count': total_blue_count, 'white_count': total_white_count}
+        fields = ('name', 'bills', 'active_legislators', 'support_split')
 
     def get_active_legislators(self, obj):
         def json_list_for(activities):
@@ -201,7 +176,6 @@ class LegislativeSubjectSerializer(serializers.ModelSerializer):
 
         return {'top_cosponsors': json_list_for(legislative_subject_cosponsorships),
                 'top_sponsors': json_list_for(legislative_subject_sponsorships)}
-
 
 
 class PolicyAreaSerializer(serializers.ModelSerializer):
@@ -220,8 +194,8 @@ class BillSummarySerializer(serializers.ModelSerializer):
 
 class BillSerializer(serializers.ModelSerializer):
     related_bills = BillShortSerializer(many=True)
-    sponsors = serializers.SerializerMethodField()
-    co_sponsors = serializers.SerializerMethodField()
+    sponsors = LegislatorListSerializer(many=True)
+    co_sponsors = LegislatorListSerializer(many=True)
     legislative_subjects = LegislativeSubjectShortSerializer(many=True)
     policy_area = PolicyAreaShortSerializer()
     bill_summaries = BillSummarySerializer(many=True)
@@ -233,14 +207,6 @@ class BillSerializer(serializers.ModelSerializer):
                   'originating_body', 'support_splits', 'title', 'bill_summaries', 'introduction_date', 'last_modified',
                   'bill_number', 'congress', 'type', 'cbo_cost_estimate', 'url', 'bill_url')
         depth = 1
-
-    def get_sponsors(self, obj):
-        sponsors = obj.sponsors.select_subclasses()
-        return LegislatorListSerializer(sponsors, many=True, context=self.context).data
-
-    def get_co_sponsors(self, obj):
-        co_sponsors = obj.co_sponsors.select_subclasses()
-        return LegislatorListSerializer(co_sponsors, many=True, context=self.context).data
 
     def get_support_splits(self, obj):
         class SupportSplit:
@@ -271,8 +237,8 @@ class BillSerializer(serializers.ModelSerializer):
 
             return SupportSplit(red_count=red_count, blue_count=blue_count, white_count=white_count)
 
-        cosponsorship_split = generate_split(obj.co_sponsors.select_subclasses())
-        sponsorship_split = generate_split(obj.sponsors.select_subclasses())
+        cosponsorship_split = generate_split(obj.co_sponsors.all())
+        sponsorship_split = generate_split(obj.sponsors.all())
 
         return {'cosponsorship_split': cosponsorship_split.as_dict(), 'sponsorship_split': sponsorship_split.as_dict()}
 

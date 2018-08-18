@@ -481,11 +481,9 @@ def update(request):
 
         # If we don't have a bill yet, look to see if one exists at this url. If it does and doesn't need updating,
         # just return it.
-        if not b and not Bill.objects.filter(bill_url=url):
-            b = Bill()
-        elif not b:
-            b = Bill.objects.get(bill_url=url)
-            if b.last_modified == last_modified_date and b.legislative_subjects.exists():
+        if not b:
+            b, created = Bill.objects.get_or_create(bill_url=url)
+            if not created and b.last_modified == last_modified_date:
                 logging.info('Found existing bill {number} to return'.format(number=b.bill_number))
                 return b
 
