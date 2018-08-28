@@ -8,7 +8,7 @@ from . import views
 # API endpoints
 urlpatterns = format_suffix_patterns([
     path('', views.api_root),
-    path('update', views.update, name='update'),
+    path('update', views.update_view, name='update'),
     re_path(r'^parties/$', views.PartyList.as_view(), name='party-list'),
     re_path(r'^parties/(?P<pk>[0-9]+)/$', views.PartyDetail.as_view(), name='party-detail'),
     re_path(r'^states/$', views.StateList.as_view(), name='state-list'),
