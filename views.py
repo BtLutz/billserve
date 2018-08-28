@@ -10,6 +10,7 @@ from rest_framework.views import APIView
 from billserve.models import *
 from billserve.serializers import *
 from billserve.enumerations import LegislativeSubjectActivityType
+from billserve.tasks import update
 
 import urllib3
 import certifi
@@ -193,7 +194,7 @@ class PolicyAreaDetail(generics.RetrieveAPIView):
     serializer_class = PolicyAreaSerializer
 
 
-def update(request):
+def update_view(request):
     """
     Updates the database with new data from govinfo.
     :param request: A request object
@@ -749,31 +750,10 @@ def update(request):
         logging.info('Saved or updated new bill {number} at url {url}.'.format(number=b.bill_number, url=b.bill_url))
         return b
 
-    # Setting up the logging. It doesn't normally output info-level logging, so I set it to output to a file.
-    logging.basicConfig(filename='billserve/logs/views_update.log', level=logging.INFO)
     # Setup and request for main bill directory. The headers are necessary for a request to the main directory,
     # otherwise I get a 406 error. That has to do with the Accept headers on the request, so I added them all in
     # to be safe.
-    originating_url = 'https://www.govinfo.gov/bulkdata/json/BILLSTATUS/115/s'
-    http = urllib3.PoolManager(cert_reqs='CERT_REQUIRED', ca_certs=certifi.where())
-    headers = {'Accept-Encoding': 'gzip, deflate, br',
-               'Accept-Language': 'en-US,en;q=0.5',
-               'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'}
-    response = http.request('GET', originating_url, headers=headers)
-
-    # Processing response (error checking and formatting)
-    if response.status != 200:
-        logging.warning('Error fetching {url): {status}'.format(url=originating_url, status=response.status))
-        return
-    response_data = json.loads(response.data)
-
-    # Iterating through bills listed in response
-    for file in response_data['files']:
-        # bill_status_url = parse_without_coercion('link', file, url)
-        # TODO: Don't forget to switch back to the previous statement from this link below!!!
-        bill_status_url = 'https://www.govinfo.gov/bulkdata/BILLSTATUS/115/s/BILLSTATUS-115s987.xml'
-        bill_last_modified_string = parse_without_coercion(['formattedLastModifiedTime'], file, originating_url)
-        populate_bill(url=bill_status_url, last_modified_string=bill_last_modified_string)
-
-        return HttpResponse('OK')
+    origin_url = 'https://www.govinfo.gov/bulkdata/json/BILLSTATUS/115/s'
+    update.delay(origin_url=origin_url)
+    return HttpResponse(status=200, content='OK: Update queued.')
 

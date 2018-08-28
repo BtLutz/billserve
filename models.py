@@ -28,7 +28,9 @@ class District(models.Model):
 
 
 class Legislator(PolymorphicModel):
-    lis_id = models.IntegerField()
+    members = ['firstName', 'lastName', 'state', 'party']
+    optional_members = ['district', 'isOriginalCosponsor', 'sponsorshipDate']
+
     first_name = models.CharField(max_length=100)
     last_name = models.CharField(max_length=100)
 
@@ -45,6 +47,7 @@ class Legislator(PolymorphicModel):
 class LegislativeSubjectActivity(models.Model):
     activity_type = models.IntegerField(null=True)
     activity_count = models.IntegerField(default=1)
+    bills = models.ManyToManyField('Bill')
     legislative_subject = models.ForeignKey('LegislativeSubject', related_name='activities',
                                             on_delete=models.CASCADE)
     legislator = models.ForeignKey('Legislator', related_name='legislative_subject_activities',
@@ -55,6 +58,7 @@ class LegislativeSubjectSupportSplit(models.Model):
     red_count = models.IntegerField(default=0)
     blue_count = models.IntegerField(default=0)
     white_count = models.IntegerField(default=0)
+    bills = models.ManyToManyField('Bill')
     legislative_subject = models.OneToOneField('LegislativeSubject', related_name='support_split',
                                                on_delete=models.CASCADE)
 
@@ -93,8 +97,9 @@ class Representative(Legislator):
 # if I find any content in the recordedVotes field I can mark the boolean (has_been_voted_on) as True and then save
 # the corresponding votes. For right now I'm just going to focus on relaying the bill data to the user in a clean format
 class Bill(models.Model):
-    # TODO: add a way to track what stage the bill is at.
-    # I can write a module that'll take Actions and analyze their type to find out how far it's gone
+    members = ['type', 'congress', 'number']
+    optional_members = []
+
     sponsors = models.ManyToManyField('Legislator',
                                       through='Sponsorship',
                                       verbose_name='sponsors of the given bill',
@@ -130,6 +135,9 @@ class Bill(models.Model):
     # code that, after a bill is loaded in the view, can query all related bills asynchronously and add them to the view
     # as they come in.
 
+    def __init__(self, data):
+        bill = Bill()
+
     def __str__(self):
         return 'No. {bill_number}: {title}'.format(bill_number=self.bill_number, title=self.title)
 
@@ -141,6 +149,9 @@ class Bill(models.Model):
 
 
 class BillSummary(models.Model):
+    members = ['name', 'actionDate', 'text', 'actionDesc']
+    optional_members = []
+
     name = models.CharField(max_length=50)
     text = models.TextField()
     action_description = models.TextField()
@@ -153,6 +164,9 @@ class BillSummary(models.Model):
 
 
 class Committee(models.Model):
+    members = ['name', 'type', 'chamber', 'systemCode']
+    optional_members = []
+
     name = models.CharField(max_length=100)
     type = models.CharField(max_length=50, null=True)
     system_code = models.CharField(max_length=50)
@@ -163,6 +177,9 @@ class Committee(models.Model):
 
 
 class PolicyArea(models.Model):
+    members = ['name']
+    optional_members = []
+
     name = models.CharField(max_length=100)
 
     def __str__(self):
@@ -170,6 +187,9 @@ class PolicyArea(models.Model):
 
 
 class LegislativeSubject(models.Model):
+    members = ['name']
+    optional_members = []
+
     name = models.CharField(max_length=100)
 
     def __str__(self):
@@ -181,6 +201,9 @@ class LegislativeSubject(models.Model):
 
 
 class Action(models.Model):
+    members = ['actionDate', 'committee', 'text', 'type']
+    optional_members = []
+
     committee = models.ForeignKey('Committee', on_delete=models.CASCADE, null=True)
     bill = models.ForeignKey('Bill', on_delete=models.CASCADE)
     action_text = models.TextField(verbose_name='text of the action')
