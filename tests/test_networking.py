@@ -1,6 +1,5 @@
 from django.test import TestCase
 import xmltodict
-from billserve.networking import *
 from billserve.networking.models.billdata import *
 from pdb import set_trace
 

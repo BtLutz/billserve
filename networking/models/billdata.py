@@ -31,30 +31,14 @@ class NestedData:
         return raw
 
     def parse(self, data, fields):
-        res = NestedData.parse_to_raw(data, fields)
-        if isinstance(res, OrderedDict):
-            self.__verify(res)
-            self.__add_optionals(res)
-            self.__strip(res)
-        elif isinstance(res, list):
-            for nested in res:
-                self.__verify(nested)
-                self.__add_optionals(nested)
-                self.__strip(nested)
-        self.data = res
-
-    def parse_to_list(self, data, fields):
         res = self.parse_to_raw(data, fields)
-        if not isinstance(res, [].__class__):
-            res = [res]
-        for nested in res:
-            self.__verify(nested)
-            self.__add_optionals(nested)
-            self.__strip(nested)
+        if isinstance(res, OrderedDict):
+            self._verify(res)
+            self._add_optionals(res)
+            self._strip(res)
         self.data = res
-        return res
 
-    def __verify(self, data):
+    def _verify(self, data):
         def test(d):
             if isinstance(d, ''.__class__):
                 return
@@ -71,7 +55,7 @@ class NestedData:
         else:
             test(data)
 
-    def __add_optionals(self, data):
+    def _add_optionals(self, data):
         if isinstance(data, [].__class__):
             for nested in data:
                 for optional in self.optional_members:
@@ -82,7 +66,7 @@ class NestedData:
                 if optional not in data:
                     data[optional] = None
 
-    def __strip(self, data):
+    def _strip(self, data):
         data_keys = set(data.keys())
         member_keys = set(self.members).union(set(self.optional_members))
         diff = data_keys - member_keys
@@ -96,6 +80,16 @@ class NestedDataList(NestedData):
 
     def __len__(self):
         return len(self.data)
+
+    def parse(self, data, fields):
+        res = self.parse_to_raw(data, fields)
+        if not isinstance(res, [].__class__):
+            res = [res]
+        for nested in res:
+            self._verify(nested)
+            self._add_optionals(nested)
+            self._strip(nested)
+        self.data = res
 
 
 class BillData:
@@ -140,10 +134,10 @@ class BillData:
         self.introduction_date = NestedData.parse_to_raw(data, introduction_date_path)
 
         self.policy_area.parse(data, policy_area_path)
-        self.sponsors.parse_to_list(data, sponsors_path)
-        self.cosponsors.parse_to_list(data, cosponsors_path)
-        self.related_bills.parse_to_list(data, related_bills_path)
-        self.actions.parse_to_list(data, actions_path)
-        self.summaries.parse_to_list(data, summaries_path)
-        self.committees.parse_to_list(data, committees_path)
-        self.legislative_subjects.parse_to_list(data, legislative_subjects_path)
+        self.sponsors.parse(data, sponsors_path)
+        self.cosponsors.parse(data, cosponsors_path)
+        self.related_bills.parse(data, related_bills_path)
+        self.actions.parse(data, actions_path)
+        self.summaries.parse(data, summaries_path)
+        self.committees.parse(data, committees_path)
+        self.legislative_subjects.parse(data, legislative_subjects_path)
