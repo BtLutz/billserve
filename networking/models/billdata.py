@@ -6,44 +6,51 @@ from collections import OrderedDict
 
 class NestedData:
     name = ''
-    fields = []
     members = []
     optional_members = []
     data = None
 
-    def __init__(self, name, fields, model=None):
+    def __init__(self, name='', model=None):
         assert isinstance(name, ''.__class__)
-        assert isinstance(fields, [].__class__)
 
         self.name = name
-        self.fields = fields
         if model:
             self.members = model.members
             self.optional_members = model.optional_members
 
-    def parse(self, data, fields):
-        logging.info('Parsing data for {n}'.format(n=self.name))
+    @staticmethod
+    def parse_to_raw(data, fields):
         raw = data
         try:
-            for field in self.fields:
+            for field in fields:
                 raw = raw[field]
         except KeyError as e:
-            raise KeyError('Error parsing field: {e}'.format(e=field))
+            raise KeyError('Error parsing field: {e}'.format(e=fields))
         except TypeError:
-            logging.warning(('Encountered an empty dict in {e}'.format(e=self.fields)))
-
-        if isinstance(raw, OrderedDict):
-            self.__verify(raw)
-            self.__add_optionals(raw)
-            self.__strip(raw)
-
-        self.data = raw
+            logging.warning(('Encountered an empty dict in {e}'.format(e=fields)))
         return raw
 
-    def parse_to_list(self, data):
-        res = self.parse(data)
+    def parse(self, data, fields):
+        res = NestedData.parse_to_raw(data, fields)
+        if isinstance(res, OrderedDict):
+            self.__verify(res)
+            self.__add_optionals(res)
+            self.__strip(res)
+        elif isinstance(res, list):
+            for nested in res:
+                self.__verify(nested)
+                self.__add_optionals(nested)
+                self.__strip(nested)
+        self.data = res
+
+    def parse_to_list(self, data, fields):
+        res = self.parse_to_raw(data, fields)
         if not isinstance(res, [].__class__):
             res = [res]
+        for nested in res:
+            self.__verify(nested)
+            self.__add_optionals(nested)
+            self.__strip(nested)
         self.data = res
         return res
 
@@ -92,50 +99,51 @@ class NestedDataList(NestedData):
 
 
 class BillData:
-    type_path = ['billType']
-    number_path = ['billNumber']
-    title_path = ['title']
-    congress_path = ['congress']
-    introduction_date_path = ['introducedDate']
-    policy_area_path = ['policyArea']
-    sponsors_path = ['sponsors', 'item']
-    cosponsors_path = ['cosponsors', 'item']
-    related_bills_path = ['relatedBills', 'item']
-    actions_path = ['actions', 'item']
-    summaries_path = ['summaries', 'billSummaries', 'item']
-    committees_path = ['committees', 'billCommittees', 'item']
-    legislative_subjects_path = ['subjects', 'billSubjects', 'legislativeSubjects', 'item']
-
-    type = NestedData('billType', type_path)
-    number = NestedData('billNumber', number_path)
-    title = NestedData('billTitle', title_path)
-    congress = NestedData('congress', congress_path)
-    introduction_date = NestedData('introducedDate', introduction_date_path)
-    policy_area = NestedData('policyArea', policy_area_path, PolicyArea)
-    sponsors = NestedDataList('sponsors', sponsors_path, Legislator)
-    cosponsors = NestedDataList('cosponsors', cosponsors_path, Legislator)
-    related_bills = NestedDataList('relatedBills', related_bills_path, Bill)
-    actions = NestedDataList('actions', actions_path, Action)
-    summaries = NestedDataList('billSummaries', summaries_path, BillSummary)
-    committees = NestedDataList('committees', committees_path, Committee)
-    legislative_subjects = NestedDataList('legislativeSubjects', legislative_subjects_path, LegislativeSubject)
+    type = ''
+    number = ''
+    title = ''
+    congress = ''
+    introduction_date = ''
+    policy_area = NestedData('policyArea', PolicyArea)
+    sponsors = NestedDataList('sponsors', Legislator)
+    cosponsors = NestedDataList('cosponsors', Legislator)
+    related_bills = NestedDataList('relatedBills', Bill)
+    actions = NestedDataList('actions', Action)
+    summaries = NestedDataList('billSummaries', BillSummary)
+    committees = NestedDataList('committees', Committee)
+    legislative_subjects = NestedDataList('legislativeSubjects', LegislativeSubject)
 
     def __init__(self, data):
         try:
             data = data['billStatus']['bill']
         except KeyError:
             raise KeyError('Malformed XML data found in data.')
-        self.type.parse(data)
-        self.number.parse(data)
-        self.title.parse(data)
-        self.congress.parse(data)
-        self.introduction_date.parse(data)
-        self.policy_area.parse(data)
 
-        self.sponsors.parse_to_list(data)
-        self.cosponsors.parse_to_list(data)
-        self.related_bills.parse_to_list(data)
-        self.actions.parse_to_list(data)
-        self.summaries.parse_to_list(data)
-        self.committees.parse_to_list(data)
-        self.legislative_subjects.parse_to_list(data)
+        type_path = ['billType']
+        number_path = ['billNumber']
+        title_path = ['title']
+        congress_path = ['congress']
+        introduction_date_path = ['introducedDate']
+        policy_area_path = ['policyArea']
+        sponsors_path = ['sponsors', 'item']
+        cosponsors_path = ['cosponsors', 'item']
+        related_bills_path = ['relatedBills', 'item']
+        actions_path = ['actions', 'item']
+        summaries_path = ['summaries', 'billSummaries', 'item']
+        committees_path = ['committees', 'billCommittees', 'item']
+        legislative_subjects_path = ['subjects', 'billSubjects', 'legislativeSubjects', 'item']
+
+        self.type = NestedData.parse_to_raw(data, type_path)
+        self.number = NestedData.parse_to_raw(data, number_path)
+        self.title = NestedData.parse_to_raw(data, title_path)
+        self.congress = NestedData.parse_to_raw(data, congress_path)
+        self.introduction_date = NestedData.parse_to_raw(data, introduction_date_path)
+
+        self.policy_area.parse(data, policy_area_path)
+        self.sponsors.parse_to_list(data, sponsors_path)
+        self.cosponsors.parse_to_list(data, cosponsors_path)
+        self.related_bills.parse_to_list(data, related_bills_path)
+        self.actions.parse_to_list(data, actions_path)
+        self.summaries.parse_to_list(data, summaries_path)
+        self.committees.parse_to_list(data, committees_path)
+        self.legislative_subjects.parse_to_list(data, legislative_subjects_path)
