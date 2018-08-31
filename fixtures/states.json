@@ -1,0 +1,482 @@
+[
+  {
+    "model": "billserve.state",
+    "pk": "1",
+    "fields": {
+      "abbreviation": "AL",
+      "name": "Alabama"
+    }
+  },
+  {
+    "model": "billserve.state",
+    "pk": "2",
+    "fields": {
+      "abbreviation": "AK",
+      "name": "Alaska"
+    }
+  },
+  {
+    "model": "billserve.state",
+    "pk": "3",
+    "fields": {
+      "abbreviation": "AZ",
+      "name": "Arizona"
+    }
+  },
+  {
+    "model": "billserve.state",
+    "pk": "4",
+    "fields": {
+      "abbreviation": "AR",
+      "name": "Arkansas"
+    }
+  },
+  {
+    "model": "billserve.state",
+    "pk": "5",
+    "fields": {
+      "abbreviation": "CA",
+      "name": "California"
+    }
+  },
+  {
+    "model": "billserve.state",
+    "pk": "6",
+    "fields": {
+      "abbreviation": "CO",
+      "name": "Colorado"
+    }
+  },
+  {
+    "model": "billserve.state",
+    "pk": "7",
+    "fields": {
+      "abbreviation": "CT",
+      "name": "Connecticut"
+    }
+  },
+  {
+    "model": "billserve.state",
+    "pk": "8",
+    "fields": {
+      "abbreviation": "DE",
+      "name": "Delaware"
+    }
+  },
+  {
+    "model": "billserve.state",
+    "pk": "9",
+    "fields": {
+      "abbreviation": "DC",
+      "name": "District of Columbia"
+    }
+  },
+  {
+    "model": "billserve.state",
+    "pk": "10",
+    "fields": {
+      "abbreviation": "FL",
+      "name": "Florida"
+    }
+  },
+  {
+    "model": "billserve.state",
+    "pk": "11",
+    "fields": {
+      "abbreviation": "GA",
+      "name": "Georgia"
+    }
+  },
+  {
+    "model": "billserve.state",
+    "pk": "12",
+    "fields": {
+      "abbreviation": "HI",
+      "name": "Hawaii"
+    }
+  },
+  {
+    "model": "billserve.state",
+    "pk": "13",
+    "fields": {
+      "abbreviation": "ID",
+      "name": "Idaho"
+    }
+  },
+  {
+    "model": "billserve.state",
+    "pk": "14",
+    "fields": {
+      "abbreviation": "IL",
+      "name": "Illinois"
+    }
+  },
+  {
+    "model": "billserve.state",
+    "pk": "15",
+    "fields": {
+      "abbreviation": "IN",
+      "name": "Indiana"
+    }
+  },
+  {
+    "model": "billserve.state",
+    "pk": "16",
+    "fields": {
+      "abbreviation": "IA",
+      "name": "Iowa"
+    }
+  },
+  {
+    "model": "billserve.state",
+    "pk": "17",
+    "fields": {
+      "abbreviation": "KS",
+      "name": "Kansas"
+    }
+  },
+  {
+    "model": "billserve.state",
+    "pk": "18",
+    "fields": {
+      "abbreviation": "KY",
+      "name": "Kentucky"
+    }
+  },
+  {
+    "model": "billserve.state",
+    "pk": "19",
+    "fields": {
+      "abbreviation": "LA",
+      "name": "Louisiana"
+    }
+  },
+  {
+    "model": "billserve.state",
+    "pk": "20",
+    "fields": {
+      "abbreviation": "ME",
+      "name": "Maine"
+    }
+  },
+  {
+    "model": "billserve.state",
+    "pk": "21",
+    "fields": {
+      "abbreviation": "MD",
+      "name": "Maryland"
+    }
+  },
+  {
+    "model": "billserve.state",
+    "pk": "22",
+    "fields": {
+      "abbreviation": "MA",
+      "name": "Massachusetts"
+    }
+  },
+  {
+    "model": "billserve.state",
+    "pk": "23",
+    "fields": {
+      "abbreviation": "MI",
+      "name": "Michigan"
+    }
+  },
+  {
+    "model": "billserve.state",
+    "pk": "24",
+    "fields": {
+      "abbreviation": "MN",
+      "name": "Minnesota"
+    }
+  },
+  {
+    "model": "billserve.state",
+    "pk": "25",
+    "fields": {
+      "abbreviation": "MS",
+      "name": "Mississippi"
+    }
+  },
+  {
+    "model": "billserve.state",
+    "pk": "26",
+    "fields": {
+      "abbreviation": "MO",
+      "name": "Missouri"
+    }
+  },
+  {
+    "model": "billserve.state",
+    "pk": "27",
+    "fields": {
+      "abbreviation": "MT",
+      "name": "Montana"
+    }
+  },
+  {
+    "model": "billserve.state",
+    "pk": "28",
+    "fields": {
+      "abbreviation": "NE",
+      "name": "Nebraska"
+    }
+  },
+  {
+    "model": "billserve.state",
+    "pk": "29",
+    "fields": {
+      "abbreviation": "NV",
+      "name": "Nevada"
+    }
+  },
+  {
+    "model": "billserve.state",
+    "pk": "30",
+    "fields": {
+      "abbreviation": "NH",
+      "name": "New Hampshire"
+    }
+  },
+  {
+    "model": "billserve.state",
+    "pk": "31",
+    "fields": {
+      "abbreviation": "NJ",
+      "name": "New Jersey"
+    }
+  },
+  {
+    "model": "billserve.state",
+    "pk": "32",
+    "fields": {
+      "abbreviation": "NM",
+      "name": "New Mexico"
+    }
+  },
+  {
+    "model": "billserve.state",
+    "pk": "33",
+    "fields": {
+      "abbreviation": "NY",
+      "name": "New York"
+    }
+  },
+  {
+    "model": "billserve.state",
+    "pk": "34",
+    "fields": {
+      "abbreviation": "NC",
+      "name": "North Carolina"
+    }
+  },
+  {
+    "model": "billserve.state",
+    "pk": "35",
+    "fields": {
+      "abbreviation": "ND",
+      "name": "North Dakota"
+    }
+  },
+  {
+    "model": "billserve.state",
+    "pk": "36",
+    "fields": {
+      "abbreviation": "OH",
+      "name": "Ohio"
+    }
+  },
+  {
+    "model": "billserve.state",
+    "pk": "37",
+    "fields": {
+      "abbreviation": "OK",
+      "name": "Oklahoma"
+    }
+  },
+  {
+    "model": "billserve.state",
+    "pk": "38",
+    "fields": {
+      "abbreviation": "OR",
+      "name": "Oregon"
+    }
+  },
+  {
+    "model": "billserve.state",
+    "pk": "39",
+    "fields": {
+      "abbreviation": "PA",
+      "name": "Pennsylvania"
+    }
+  },
+  {
+    "model": "billserve.state",
+    "pk": "40",
+    "fields": {
+      "abbreviation": "RI",
+      "name": "Rhode Island"
+    }
+  },
+  {
+    "model": "billserve.state",
+    "pk": "41",
+    "fields": {
+      "abbreviation": "SC",
+      "name": "South Carolina"
+    }
+  },
+  {
+    "model": "billserve.state",
+    "pk": "42",
+    "fields": {
+      "abbreviation": "SD",
+      "name": "South Dakota"
+    }
+  },
+  {
+    "model": "billserve.state",
+    "pk": "43",
+    "fields": {
+      "abbreviation": "TN",
+      "name": "Tennessee"
+    }
+  },
+  {
+    "model": "billserve.state",
+    "pk": "44",
+    "fields": {
+      "abbreviation": "TX",
+      "name": "Texas"
+    }
+  },
+  {
+    "model": "billserve.state",
+    "pk": "45",
+    "fields": {
+      "abbreviation": "UT",
+      "name": "Utah"
+    }
+  },
+  {
+    "model": "billserve.state",
+    "pk": "46",
+    "fields": {
+      "abbreviation": "VT",
+      "name": "Vermont"
+    }
+  },
+  {
+    "model": "billserve.state",
+    "pk": "47",
+    "fields": {
+      "abbreviation": "VA",
+      "name": "Virginia"
+    }
+  },
+  {
+    "model": "billserve.state",
+    "pk": "48",
+    "fields": {
+      "abbreviation": "WA",
+      "name": "Washington"
+    }
+  },
+  {
+    "model": "billserve.state",
+    "pk": "49",
+    "fields": {
+      "abbreviation": "WV",
+      "name": "West Virginia"
+    }
+  },
+  {
+    "model": "billserve.state",
+    "pk": "50",
+    "fields": {
+      "abbreviation": "WI",
+      "name": "Wisconsin"
+    }
+  },
+  {
+    "model": "billserve.state",
+    "pk": "51",
+    "fields": {
+      "abbreviation": "WY",
+      "name": "Wyoming"
+    }
+  },
+  {
+    "model": "billserve.state",
+    "pk": "52",
+    "fields": {
+      "abbreviation": "MP",
+      "name": "Northern Mariana Islands"
+    }
+  },
+  {
+    "model": "billserve.state",
+    "pk": "53",
+    "fields": {
+      "abbreviation": "AS",
+      "name": "American Samoa"
+    }
+  },
+  {
+    "model": "billserve.state",
+    "pk": "54",
+    "fields": {
+      "abbreviation": "GU",
+      "name": "Guam"
+    }
+  },
+  {
+    "model": "billserve.state",
+    "pk": "55",
+    "fields": {
+      "abbreviation": "PR",
+      "name": "Puerto Rico"
+    }
+  },
+  {
+    "model": "billserve.state",
+    "pk": "56",
+    "fields": {
+      "abbreviation": "VI",
+      "name": "U.S. Virgin Islands"
+    }
+  },
+  {
+    "model": "billserve.state",
+    "pk": "57",
+    "fields": {
+      "abbreviation": "UM",
+      "name": "U.S. Minor Outlying Islands"
+    }
+  },
+  {
+    "model": "billserve.state",
+    "pk": "58",
+    "fields": {
+      "abbreviation": "FM",
+      "name": "Micronesia"
+    }
+  },
+  {
+    "model": "billserve.state",
+    "pk": "59",
+    "fields": {
+      "abbreviation": "MH",
+      "name": "Marshall Island"
+    }
+  },
+  {
+    "model": "billserve.state",
+    "pk": "60",
+    "fields": {
+      "abbreviation": "PW",
+      "name": "Palau"
+    }
+  }
+]

@@ -42,3 +42,5 @@ class BillDataTestCase(TestCase):
     def test_bill_data_summaries_content(self):
         summary = OrderedDict(self.data['billStatus']['bill']['summaries']['billSummaries']['item'])
         self.assertEqual(self.bill_data.summaries[0], summary)
+
+    # Test case for parsing a sponsor with no district, and a sponsor with a district.
