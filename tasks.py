@@ -2,19 +2,12 @@ from __future__ import absolute_import, unicode_literals
 from celery import shared_task
 
 from billserve.networking.client import GovinfoClient
-from billserve.models import Bill
+from billserve.models import Bill, BillManager
 
 
 @shared_task
-def add_related_bill(related_bill_pk, bill_pk):
-    related_bill = Bill.objects.get(pk=related_bill_pk)
-    bill = Bill.objects.get(pk=bill_pk)
-
-    related_bill.related_bills.add(bill)
-    related_bill.save()
-
-    bill.related_bills.add(related_bill)
-    bill.save()
+def add_related_bill(current_bill_pk, related_bill_pk):
+    BillManager.add_related_bill(current_bill_pk, related_bill_pk)
 
 
 @shared_task

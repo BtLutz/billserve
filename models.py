@@ -2,7 +2,10 @@ from django.db import models
 from polymorphic.models import PolymorphicModel
 import datetime
 from pytz import utc
+from .chains import RelatedBillChain
 import celery
+
+from .networking.client import GovinfoClient
 
 
 def fix_name(n):
@@ -131,13 +134,24 @@ class BillManager(models.Manager):
         bill.process_policy_area(bill_data.policy_area)
         bill.process_sponsors(bill_data.sponsors)
         bill.process_cosponsors(bill_data.cosponsors)
-        # bill.__process_related_bills(bill_data.related_bills)
+        bill.process_related_bills(bill_data.related_bills)
         # bill.__process_actions(bill_data.actions)
         # bill.__process_summaries(bill_data.summaries)
         # bill.__process_committees(bill_data.committees)
         bill.process_legislative_subjects(bill_data.legislative_subjects)
 
         return bill
+
+    @staticmethod
+    def add_related_bill(bill_pk, related_bill_pk):
+        related_bill = Bill.objects.get(pk=related_bill_pk)
+        bill = Bill.objects.get(pk=bill_pk)
+
+        related_bill.related_bills.add(bill)
+        related_bill.save()
+
+        bill.related_bills.add(related_bill)
+        bill.save()
 
 
 class Bill(models.Model):
@@ -191,7 +205,7 @@ class Bill(models.Model):
             party = Party.objects.get(abbreviation=party)
 
             if district:
-                district = District.objects.get_or_create(number=district, state=state)
+                district = District.objects.get_or_create(number=district, state=state)[0]
                 legislator = Representative.objects.get_or_create(
                     first_name=first_name, last_name=last_name, state=state, party=party, district=district)[0]
             else:
@@ -221,7 +235,7 @@ class Bill(models.Model):
             party = Party.objects.get(abbreviation=party)
 
             if district:
-                district = District.objects.get_or_create(number=district, state=state)
+                district = District.objects.get_or_create(number=district, state=state)[0]
                 legislator = Representative.objects.get_or_create(
                     first_name=first_name, last_name=last_name, state=state, party=party, district=district)[0]
             else:
@@ -238,12 +252,10 @@ class Bill(models.Model):
             related_bill_congress = related_bill_data['congress']
             related_bill_number = related_bill_data['number']
 
-            related_bill_url = \
-                'https://www.govinfo.gov/bulkdata/BILLSTATUS/{congress}/{type}/BILLSTATUS-{congress}{type}{number}.xml'\
-                .format(congress=related_bill_congress, type=related_bill_type.lower(), number=related_bill_number)
+            related_bill_url = GovinfoClient.generate_bill_url(
+                related_bill_congress, related_bill_type, related_bill_number)
 
-            # populate_bill.apply_async(related_bill_url, link=add_related_bill.s(self.pk))
-            # celery.current_app.send_task('billserve.tasks.populate_bill', args=(related_bill_url,))
+            RelatedBillChain.execute(related_bill_url, self.pk)
 
     def process_legislative_subjects(self, legislative_subject_data_list):
         for legislative_subject_data in legislative_subject_data_list:
@@ -256,10 +268,10 @@ class Bill(models.Model):
         return 'No. {bill_number}: {title}'.format(bill_number=self.bill_number, title=self.title)
 
     def co_sponsor_count(self):
-        return self.co_sponsors.count()
+        return self.co_sponsors.all().count()
 
     def sponsor_count(self):
-        return self.sponsors.count()
+        return self.sponsors.all().count()
 
 
 class BillSummary(models.Model):
