@@ -39,7 +39,7 @@ class DistrictShortSerializer(serializers.HyperlinkedModelSerializer):
 class LegislatorShortSerializer(serializers.HyperlinkedModelSerializer):
     class Meta:
         model = Legislator
-        fields = ('lis_id', 'first_name', 'last_name', 'url')
+        fields = ('first_name', 'last_name', 'url')
 
 
 class SenatorShortSerializer(serializers.HyperlinkedModelSerializer):
@@ -71,7 +71,7 @@ class SenatorSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Senator
-        fields = ('lis_id', 'party', 'legislative_body', 'state', 'committees', 'first_name', 'last_name',
+        fields = ('party', 'legislative_body', 'state', 'committees', 'first_name', 'last_name',
                   'co_sponsored_bills', 'sponsored_bills')
 
 
@@ -83,7 +83,7 @@ class RepresentativeSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Representative
-        fields = ('lis_id', 'party', 'legislative_body', 'state', 'committees', 'first_name', 'last_name', 'district',
+        fields = ('party', 'legislative_body', 'state', 'committees', 'first_name', 'last_name', 'district',
                   'sponsored_bills', 'co_sponsored_bills')
 
 
