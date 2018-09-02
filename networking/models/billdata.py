@@ -93,11 +93,6 @@ class NestedDataList(NestedData):
 
 
 class BillData:
-    type = ''
-    number = ''
-    title = ''
-    congress = ''
-    introduction_date = ''
     policy_area = NestedData('policyArea', PolicyArea)
     sponsors = NestedDataList('sponsors', Legislator)
     cosponsors = NestedDataList('cosponsors', Legislator)
@@ -107,7 +102,7 @@ class BillData:
     committees = NestedDataList('committees', Committee)
     legislative_subjects = NestedDataList('legislativeSubjects', LegislativeSubject)
 
-    def __init__(self, data):
+    def __init__(self, data, url):
         try:
             data = data['billStatus']['bill']
         except KeyError:
@@ -141,3 +136,5 @@ class BillData:
         self.summaries.parse(data, summaries_path)
         self.committees.parse(data, committees_path)
         self.legislative_subjects.parse(data, legislative_subjects_path)
+
+        self.url = url

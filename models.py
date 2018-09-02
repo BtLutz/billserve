@@ -1,5 +1,28 @@
 from django.db import models
 from polymorphic.models import PolymorphicModel
+import datetime
+from pytz import utc
+import celery
+
+
+def fix_name(n):
+    """
+    Convert all uppercase string to have the first letter capitalized and the rest of the letters lowercase.
+    :param n: The string to convert
+    :return: The formalized string
+    """
+    assert isinstance(n, ''.__class__), 'parameter n is not a string: {n}'.format(n=n)
+    return "{0}{1}".format(n[0].upper(), n[1:].lower())
+
+
+def format_date(string, date_format):
+    """
+    Formats the given string into a Datetime object based on the given format.
+    :param string: A string to format into a date
+    :param date_format: A string containing the date format
+    :return: A datetime object set to the date and time represented by our string
+    """
+    return datetime.datetime.strptime(string, date_format).astimezone(utc)
 
 
 class Party(models.Model):
@@ -30,6 +53,7 @@ class District(models.Model):
 class Legislator(PolymorphicModel):
     members = ['firstName', 'lastName', 'state', 'party']
     optional_members = ['district', 'isOriginalCosponsor', 'sponsorshipDate']
+    cosponsorship_date_format = '%Y-%m-%d'
 
     first_name = models.CharField(max_length=100)
     last_name = models.CharField(max_length=100)
@@ -92,18 +116,38 @@ class Representative(Legislator):
                                                                            district=self.district)
 
 
-# A big deal in the near future will be adding a boolean field to denote if a bill has already been voted on.
-# This will entail some logic in the code to decide whether or not a bill has been voted on. Most likely
-# if I find any content in the recordedVotes field I can mark the boolean (has_been_voted_on) as True and then save
-# the corresponding votes. For right now I'm just going to focus on relaying the bill data to the user in a clean format
+class BillManager(models.Manager):
+    def create_from_data(self, bill_data):
+        url = bill_data.url
+        bill = self.create(bill_url=url)
+
+        bill.type = bill_data.type
+        bill.bill_number = int(bill_data.number)
+        bill.title = bill_data.title
+        bill.congress = int(bill_data.congress)
+        bill.introduction_date = format_date(bill_data.introduction_date, Bill.introduction_date_format)
+        bill.save()
+
+        bill.process_policy_area(bill_data.policy_area)
+        bill.process_sponsors(bill_data.sponsors)
+        bill.process_cosponsors(bill_data.cosponsors)
+        # bill.__process_related_bills(bill_data.related_bills)
+        # bill.__process_actions(bill_data.actions)
+        # bill.__process_summaries(bill_data.summaries)
+        # bill.__process_committees(bill_data.committees)
+        bill.process_legislative_subjects(bill_data.legislative_subjects)
+
+        return bill
+
+
 class Bill(models.Model):
     members = ['type', 'congress', 'number']
     optional_members = []
+    introduction_date_format = '%Y-%m-%d'
+    objects = BillManager()
 
-    sponsors = models.ManyToManyField('Legislator',
-                                      through='Sponsorship',
-                                      verbose_name='sponsors of the given bill',
-                                      related_name='sponsored_bills')
+    sponsors = models.ManyToManyField(
+        'Legislator', verbose_name='sponsors of the given bill', related_name='sponsored_bills')
     co_sponsors = models.ManyToManyField('Legislator',
                                          through='CoSponsorship',
                                          verbose_name='co-sponsors of the given bill',
@@ -113,8 +157,6 @@ class Bill(models.Model):
     related_bills = models.ManyToManyField('Bill')
     committees = models.ManyToManyField('Committee')
 
-    # I'm leaving off the latest_bill_summary field because it's unnecessary.
-    # To get the most recent summary, query and then sort by date and only return the first to client.
     originating_body = models.ForeignKey('LegislativeBody', on_delete=models.SET_NULL, null=True)
 
     title = models.TextField(verbose_name='title of bill', null=True)
@@ -128,15 +170,87 @@ class Bill(models.Model):
 
     type = models.CharField(max_length=10, verbose_name='type of bill (S, HR, HRJRES, etc.)', null=True)
 
-    cbo_cost_estimate = models.URLField(null=True)  # If CBO cost estimate in bill_status, then append it to the related bill
+    cbo_cost_estimate = models.URLField(null=True)  # If CBO cost estimate in bill_status
     bill_url = models.URLField()
-    # NOTE: I'm adding in related_bills as a field for right now. This may be useful for later for if a user views
-    # a bill and would like to see related bills through a query. I can provide an easy endpoints for the iOS controller
-    # code that, after a bill is loaded in the view, can query all related bills asynchronously and add them to the view
-    # as they come in.
 
-    def __init__(self, data):
-        bill = Bill()
+    def process_policy_area(self, policy_area_data):
+        policy_area_name = policy_area_data.data['name']
+        policy_area = PolicyArea.objects.get_or_create(name=policy_area_name)[0]
+        self.policy_area = policy_area
+        self.save()
+
+    def process_sponsors(self, sponsor_data_list):
+        for sponsor_data in sponsor_data_list:
+            first_name = sponsor_data['firstName']
+            last_name = sponsor_data['lastName']
+            state = sponsor_data['state']
+            party = sponsor_data['party']
+            district = sponsor_data['district']
+
+            state = State.objects.get(abbreviation=state)
+            party = Party.objects.get(abbreviation=party)
+
+            if district:
+                district = District.objects.get_or_create(number=district, state=state)
+                legislator = Representative.objects.get_or_create(
+                    first_name=first_name, last_name=last_name, state=state, party=party, district=district)[0]
+            else:
+                legislator = Senator.objects.get_or_create(
+                    first_name=first_name, last_name=last_name, state=state, party=party)[0]
+            self.sponsors.add(legislator)
+        self.save()
+
+    def process_cosponsors(self, cosponsor_data_list):
+        for cosponsor_data in cosponsor_data_list:
+            first_name = cosponsor_data['firstName']
+            last_name = cosponsor_data['lastName']
+            state = cosponsor_data['state']
+            party = cosponsor_data['party']
+            district = cosponsor_data['district']
+            is_original_cosponsor_string = cosponsor_data['isOriginalCosponsor']
+            cosponsorship_date_string = cosponsor_data['sponsorshipDate']
+
+            cosponsorship_date = format_date(cosponsorship_date_string, Legislator.cosponsorship_date_format)
+
+            if is_original_cosponsor_string not in {'True', 'False'}:
+                raise ValueError('Unexpected isOriginalCosponsor value: {v}'.format(v=is_original_cosponsor_string))
+
+            is_original_cosponsor = True if is_original_cosponsor_string == 'True' else False
+
+            state = State.objects.get(abbreviation=state)
+            party = Party.objects.get(abbreviation=party)
+
+            if district:
+                district = District.objects.get_or_create(number=district, state=state)
+                legislator = Representative.objects.get_or_create(
+                    first_name=first_name, last_name=last_name, state=state, party=party, district=district)[0]
+            else:
+                legislator = Senator.objects.get_or_create(
+                    first_name=first_name, last_name=last_name, state=state, party=party)[0]
+
+            if not CoSponsorship.objects.filter(bill=self, legislator=legislator).exists():
+                CoSponsorship.objects.create(bill=self, legislator=legislator, co_sponsorship_date=cosponsorship_date,
+                                             is_original_cosponsor=is_original_cosponsor)
+
+    def process_related_bills(self, related_bill_data_list):
+        for related_bill_data in related_bill_data_list:
+            related_bill_type = related_bill_data['type']
+            related_bill_congress = related_bill_data['congress']
+            related_bill_number = related_bill_data['number']
+
+            related_bill_url = \
+                'https://www.govinfo.gov/bulkdata/BILLSTATUS/{congress}/{type}/BILLSTATUS-{congress}{type}{number}.xml'\
+                .format(congress=related_bill_congress, type=related_bill_type.lower(), number=related_bill_number)
+
+            # populate_bill.apply_async(related_bill_url, link=add_related_bill.s(self.pk))
+            # celery.current_app.send_task('billserve.tasks.populate_bill', args=(related_bill_url,))
+
+    def process_legislative_subjects(self, legislative_subject_data_list):
+        for legislative_subject_data in legislative_subject_data_list:
+            name = legislative_subject_data['name']
+            legislative_subject = LegislativeSubject.objects.get_or_create(name=name)[0]
+            self.legislative_subjects.add(legislative_subject)
+        self.save()
 
     def __str__(self):
         return 'No. {bill_number}: {title}'.format(bill_number=self.bill_number, title=self.title)
