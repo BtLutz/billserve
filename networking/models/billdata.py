@@ -40,7 +40,7 @@ class NestedData:
 
     def _verify(self, data):
         def test(d):
-            if isinstance(d, ''.__class__):
+            if not d or isinstance(d, ''.__class__):
                 return
             d = set(d.keys())
             members = set(self.members)

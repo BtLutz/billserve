@@ -215,6 +215,8 @@ class Bill(models.Model):
         self.save()
 
     def process_cosponsors(self, cosponsor_data_list):
+        if not cosponsor_data_list:
+            return
         for cosponsor_data in cosponsor_data_list:
             first_name = cosponsor_data['firstName']
             last_name = cosponsor_data['lastName']
