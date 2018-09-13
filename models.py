@@ -218,7 +218,7 @@ class Cosponsorship(models.Model):
     legislator = models.ForeignKey('Legislator', on_delete=models.CASCADE)
     bill = models.ForeignKey('Bill', on_delete=models.CASCADE)
     is_original_cosponsor = models.BooleanField()
-    co_sponsorship_date = models.DateField()
+    cosponsorship_date = models.DateField()
 
     def __str__(self):
         return '{legislator} - {bill}'.format(legislator=self.legislator, bill=self.bill)

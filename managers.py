@@ -185,8 +185,8 @@ class ActionManager(Manager):
 
 
 class CosponsorshipManager(Manager):
-    def get_or_create_from_dict(self, data):
-        from .models import Legislator, Cosponsorship
+    def get_or_create_from_dict(self, data, bill_pk):
+        from .models import Legislator, Cosponsorship, Bill
 
         legislator = Legislator.objects.get_or_create_from_dict(data)
         cosponsorship_date_string = data['sponsorshipDate']
@@ -199,3 +199,7 @@ class CosponsorshipManager(Manager):
 
         is_original_cosponsor = bool(is_original_cosponsor_string)
 
+        bill = Bill.objects.get(pk=bill_pk)
+
+        self.get_or_create(legislator=legislator, bill=bill, is_original_cosponsor=is_original_cosponsor,
+                           cosponsorship_date=cosponsorship_date)
