@@ -1,0 +1,10 @@
+[
+  {
+    "model": "billserve.district",
+    "pk": 1,
+    "fields": {
+      "number": 14,
+      "state": 36
+    }
+  }
+]

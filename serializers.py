@@ -108,9 +108,9 @@ class StateSerializer(serializers.ModelSerializer):
         fields = ('name', 'abbreviation', 'senators', 'representatives', 'representative_count')
 
 
-class LegislativeBodySerializer(serializers.ModelSerializer):
+class ChamberSerializer(serializers.ModelSerializer):
     class Meta:
-        model = LegislativeBody
+        model = Chamber
         fields = ('name', 'abbreviation')
 
 
