@@ -10,6 +10,11 @@ class HttpClient:
                }
 
     def get(self, url):
+        """
+        Requests a webpage with the headers that http://govinfo.gov/ requires.
+        :param url: The URL you'd like to request
+        :return: The response from the remote server
+        """
         response = self.pool.request('GET', url, headers=self.headers)
         if response.status != 200:
             raise urllib3.exceptions.HTTPError('Bad status encountered while requesting url {url}: {status}'

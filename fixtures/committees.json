@@ -1,0 +1,11 @@
+[
+  {
+    "model": "billserve.committee",
+    "pk": 1,
+    "fields": {
+      "type": "Standing",
+      "chamber": 1,
+      "name": "Health, Education, Labor and Pensions Committee"
+    }
+  }
+]

@@ -13,6 +13,7 @@ def fix_name(n):
     :return: The formalized string
     """
     assert isinstance(n, ''.__class__), 'parameter n is not a string: {n}'.format(n=n)
+    assert len(n) > 0, 'parameter n is < 1 length'
     return "{0}{1}".format(n[0].upper(), n[1:].lower())
 
 
@@ -28,6 +29,11 @@ def format_date(string, date_format):
 
 class LegislatorManager(PolymorphicManager):
     def get_or_create_from_dict(self, data):
+        """
+        Gets or creates a Legislator instance from a serialized dictionary instance.
+        :param data: A dictionary containing a serialized Legislator instance
+        :return: A tuple containing the object and a boolean indicator telling whether it was created or not
+        """
         from .models import Representative, Senator, District, State, Party
 
         first_name = data['firstName']
@@ -53,57 +59,62 @@ class LegislatorManager(PolymorphicManager):
 
 
 class BillManager(Manager):
-    def create_from_dict(self, bill_data):
+    def create_from_dict(self, data):
+        """
+        Get or create a Bill instance (and all its related instances) from a serialized dictionary instance.
+        :param data: A dictionary containing a serialized Bill instance
+        :return: The freshly created Bill instance
+        """
         from .models import Bill, PolicyArea, Legislator, Cosponsorship, BillSummary, LegislativeSubject, Action,\
             Committee
 
-        url = bill_data['url']
+        url = data['url']
         bill = self.create(bill_url=url)
 
-        bill.type = bill_data['type']
-        bill.bill_number = int(bill_data['number'])
-        bill.title = bill_data['title']
-        bill.congress = int(bill_data['congress'])
-        bill.introduction_date = format_date(bill_data['introducedDate'], Bill.introduction_date_format)
+        bill.type = data['type']
+        bill.bill_number = int(data['number'])
+        bill.title = data['title']
+        bill.congress = int(data['congress'])
+        bill.introduction_date = format_date(data['introducedDate'], Bill.introduction_date_format)
         bill.save()
 
-        if 'policyArea' in bill_data:
-            policy_area_data = bill_data['policyArea']
-            policy_area = PolicyArea.ojects.get_or_create_from_dict(policy_area_data)
+        if 'policyArea' in data:
+            policy_area_data = data['policyArea']
+            policy_area, created = PolicyArea.ojects.get_or_create_from_dict(policy_area_data)
             bill.policy_area = policy_area
         else:
             bill.policy_area = None
 
-        for sponsor_data in bill_data['sponsors']:
-            sponsor = Legislator.objects.get_or_create_from_dict(sponsor_data)
+        for sponsor_data in data['sponsors']:
+            sponsor, created = Legislator.objects.get_or_create_from_dict(sponsor_data)
             bill.sponsors.add(sponsor)
 
-        for cosponsor_data in bill_data['cosponsors']:
+        for cosponsor_data in data['cosponsors']:
             Cosponsorship.objects.create_from_dict(cosponsor_data)
 
-        for related_bill_data in bill_data['relatedBills']:
-            related_bill_type = related_bill_data['type']
-            related_bill_congress = related_bill_data['congress']
-            related_bill_number = related_bill_data['number']
+        for related_data in data['relatedBills']:
+            related_bill_type = related_data['type']
+            related_bill_congress = related_data['congress']
+            related_bill_number = related_data['number']
 
             related_bill_url = GovinfoClient.generate_bill_url(
                 related_bill_congress, related_bill_type, related_bill_number)
 
             RelatedBillChain.execute(related_bill_url, self.pk)
 
-        for bill_summary_data in bill_data['summaries']['billSummaries']:
+        for bill_summary_data in data['summaries']['billSummaries']:
             BillSummary.objects.create_from_dict(bill_summary_data, bill)
 
-        for legislative_subject_data in bill_data['subjects']['billSubjects']['legislativeSubjects']:
-            legislative_subject = LegislativeSubject.objects.get_or_create_from_dict(legislative_subject_data)
+        for legislative_subject_data in data['subjects']['billSubjects']['legislativeSubjects']:
+            legislative_subject, created = LegislativeSubject.objects.get_or_create_from_dict(legislative_subject_data)
             bill.legislative_subjects.add(legislative_subject)
 
-        for action_data in bill_data['actions']:
-            action = Action.objects.get_or_create_from_dict(action_data)
+        for action_data in data['actions']:
+            action, created = Action.objects.get_or_create_from_dict(action_data)
             bill.actions.add(action)
 
-        for committee_data in bill_data['committees']['billCommittees']:
-            committee = Committee.objects.get_or_create_from_dict(committee_data)
+        for committee_data in data['committees']['billCommittees']:
+            committee, created = Committee.objects.get_or_create_from_dict(committee_data)
             bill.committees.add(committee)
 
         bill.save()
@@ -112,6 +123,11 @@ class BillManager(Manager):
 
     @staticmethod
     def add_related_bill(bill_pk, related_bill_pk):
+        """
+        Adds a related bill to a bill's related bills, and vice versa.
+        :param bill_pk: The primary key of the first related bill
+        :param related_bill_pk: The primary key of the second related bill
+        """
         from .models import Bill
 
         related_bill = Bill.objects.get(pk=related_bill_pk)
@@ -126,6 +142,12 @@ class BillManager(Manager):
 
 class BillSummaryManager(Manager):
     def get_or_create_from_dict(self, data, bill_pk):
+        """
+        Get or create a Bill Summary instance from a serialized dictionary instance.
+        :param data: A dictionary containing the serialized bill summary
+        :param bill_pk: The primary key of the bill of which this summary is related
+        :return: A tuple containing the bill summary and a boolean indicator of whether it was created
+        """
         from .models import BillSummary, Bill
 
         name = data['name']
@@ -137,31 +159,46 @@ class BillSummaryManager(Manager):
 
         bill = Bill.objects.get(pk=bill_pk)
 
-        return self.get_or_create(name=name, action_date=action_date, text=text, description=description,
+        return self.get_or_create(name=name, action_date=action_date, text=text, action_description=description,
                                   bill=bill)
 
 
 class CommitteeManager(Manager):
     def get_or_create_from_dict(self, data):
+        """
+        Gets or creates a committee instance from a serialized dictionary.
+        :param data: A dictionary containing a serialized committee instance
+        :return: A tuple containing the committee and a boolean indicator of whether it was created
+        """
         from .models import Chamber
 
         name = data['name']
         c_type = data['type']
         chamber = data['chamber']
 
-        chamber = Chamber.objects.get_or_create(name=chamber)
+        chamber, created = Chamber.objects.get_or_create(name=chamber)
 
         return self.get_or_create(name=name, type=c_type, chamber=chamber)
 
 
 class PolicyAreaManager(Manager):
     def get_or_create_from_dict(self, data):
+        """
+        Gets or creates a policy area instance from a serialized dictionary.
+        :param data: A dictionary containing a serialized policy area instance
+        :return: A tuple containing the policy area and a boolean indicator of whether it was created
+        """
         name = data['name']
         return self.get_or_create(name=name)
 
 
 class LegislativeSubjectManager(Manager):
     def get_or_create_from_dict(self, data):
+        """
+        Gets or creates a legislative subject from a serialized model instance.
+        :param data: A dictionary containing the serialized legislative subject instance
+        :return: A tuple containing the legislative subject and a boolean indicator specifying whether it was created
+        """
         name = data['name']
 
         return self.get_or_create(name=name)
@@ -169,16 +206,22 @@ class LegislativeSubjectManager(Manager):
 
 class ActionManager(Manager):
     def get_or_create_from_dict(self, data, bill_pk):
+        """
+        Gets or creates an action from a serialized model instance.
+        :param data: A dictionary containing the serialized action instance
+        :param bill_pk: The primary key of the bill to which this action is related
+        :return: A tuple containing the action and a boolean indicator specifying whether it was created
+        """
         from .models import Action, Committee, Bill
 
-        committee_name = data['name']
+        committee_name = data['committee']['name']
         text = data['text']
         atype = data['type']
         action_date_string = data['actionDate']
 
         date = format_date(action_date_string, Action.action_date_format)
 
-        committee = Committee.objects.get_or_create(name=committee_name)
+        committee, created = Committee.objects.get_or_create(name=committee_name)
         bill = Bill.objects.get(pk=bill_pk)
 
         return self.get_or_create(committee=committee, bill=bill, action_text=text, action_type=atype, action_date=date)
@@ -186,9 +229,15 @@ class ActionManager(Manager):
 
 class CosponsorshipManager(Manager):
     def get_or_create_from_dict(self, data, bill_pk):
+        """
+        Gets or creates a cosponsorship from a serialized model instance.
+        :param data: A dictionary containing the serialized cosponsorship instance
+        :param bill_pk: The primary key of the bill to which this cosponsorship is related
+        :return: A tuple containing the cosponsorship and a boolean indicator specifying whether it was created
+        """
         from .models import Legislator, Cosponsorship, Bill
 
-        legislator = Legislator.objects.get_or_create_from_dict(data)
+        legislator, created = Legislator.objects.get_or_create_from_dict(data)
         cosponsorship_date_string = data['sponsorshipDate']
         is_original_cosponsor_string = data['isOriginalCosponsor']
 
@@ -197,9 +246,9 @@ class CosponsorshipManager(Manager):
         if is_original_cosponsor_string not in {'True', 'False'}:
             raise ValueError('Unexpected isOriginalCosponsor: {v}'.format(v=is_original_cosponsor_string))
 
-        is_original_cosponsor = bool(is_original_cosponsor_string)
+        is_original_cosponsor = 'True' if is_original_cosponsor_string == 'True' else False
 
         bill = Bill.objects.get(pk=bill_pk)
 
-        self.get_or_create(legislator=legislator, bill=bill, is_original_cosponsor=is_original_cosponsor,
-                           cosponsorship_date=cosponsorship_date)
+        return self.get_or_create(legislator=legislator, bill=bill, is_original_cosponsor=is_original_cosponsor,
+                                  cosponsorship_date=cosponsorship_date)

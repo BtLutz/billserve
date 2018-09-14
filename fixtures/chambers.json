@@ -1,0 +1,18 @@
+[
+  {
+    "model": "billserve.chamber",
+    "pk": 1,
+    "fields": {
+      "name": "Senate",
+      "abbreviation": "S"
+    }
+  },
+  {
+    "model": "billserve.chamber",
+    "pk": 2,
+    "fields": {
+      "name": "House of Representatives",
+      "abbreviation": "HR"
+    }
+  }
+]

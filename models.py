@@ -14,7 +14,6 @@ class Party(models.Model):
 class Chamber(models.Model):
     name = models.CharField(max_length=200)
     abbreviation = models.CharField(max_length=5)
-    title = models.CharField(max_length=5)
 
     def __str__(self):
         return self.name
@@ -161,7 +160,6 @@ class Committee(models.Model):
 
     name = models.CharField(max_length=100)
     type = models.CharField(max_length=50, null=True)
-    system_code = models.CharField(max_length=50)
     chamber = models.ForeignKey('Chamber', on_delete=models.CASCADE, null=True)
 
     def __str__(self):

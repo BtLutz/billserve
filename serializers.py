@@ -130,6 +130,12 @@ class LegislatorSerializer(serializers.ModelSerializer):
 
 class LegislatorListSerializer(serializers.ModelSerializer):
     def to_representation(self, instance):
+        """
+        Smart trick! This method actually figures out which subclass this particular legislator is
+        (representative or senator) and then uses the correct serializer for its subclass.
+        :param instance: The legislator instance. We'd like to figure out its subclass
+        :return: The serialized legislator instance as its subclass
+        """
         if isinstance(instance, Representative):
             return RepresentativeShortSerializer(instance=instance, context=self.context).data
         elif isinstance(instance, Senator):
@@ -164,7 +170,19 @@ class LegislativeSubjectSerializer(serializers.ModelSerializer):
         fields = ('name', 'bills', 'active_legislators', 'support_split')
 
     def get_active_legislators(self, obj):
+        """
+        This method gets the top five most active sponsors and cosponsors of bills
+        that include the given legislative subject.
+        :param obj: The legislative subject we'd like to tally all legislative involvement for
+        :return: A dictionary with two lists containing short summaries
+        for the top five sponsors and cosponsors, respectively.
+        """
         def json_list_for(activities):
+            """
+            Convenience method for converting raw legislator instances into their serialized format.
+            :param activities: The list of activities
+            :return: A dictionary that's what we'll we want to see in the API
+            """
             return [{'count': lsa.activity_count,
                      'legislator': LegislatorListSerializer(instance=lsa.legislator, context=self.context).data
                      } for lsa in activities]
@@ -209,16 +227,36 @@ class BillSerializer(serializers.ModelSerializer):
         depth = 1
 
     def get_support_splits(self, obj):
+        """
+        Gets the support splits for cosponsorships and sponsorships for a given bill.
+        :param obj: The given bill we'd like to tally our legislative sponsors and cosponsors for
+        :return: A dictionary with the values as cosponsorship and sponsorship splits as dictionaries
+        """
         class SupportSplit:
             def __init__(self, red_count, blue_count, white_count):
+                """
+                Initializes a support split with the respective party counts.
+                :param red_count: The number of republicans involved
+                :param blue_count: The number of democrats involved
+                :param white_count: The number of independents involved
+                """
                 self.red_count = red_count
                 self.blue_count = blue_count
                 self.white_count = white_count
 
             def as_dict(self):
+                """
+                Converts the support split instance into a serialized equivalent.
+                :return: A dictionary representing the serialized support split
+                """
                 return {'red_count': self.red_count, 'blue_count': self.blue_count, 'white_count': self.white_count}
 
         def generate_split(legislators):
+            """
+            Generates the distribution of republican, democrat and independent congresspeople involved with a bill.
+            :param legislators: The legislators we'd like to categorize
+            :return: The counts of republicans, democrats and independents
+            """
             red_count = blue_count = white_count = 0
             republican_party = Party.objects.get(abbreviation="R")
             democratic_party = Party.objects.get(abbreviation="D")

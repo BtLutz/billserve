@@ -198,7 +198,6 @@ def update_view(request):
     """
     Updates the database with new data from govinfo.
     :param request: A request object
-    :return: None
     """
 
     origin_url = 'https://www.govinfo.gov/bulkdata/BILLSTATUS/115/s/BILLSTATUS-115s119.xml'
