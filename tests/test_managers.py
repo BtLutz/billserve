@@ -27,7 +27,7 @@ class LegislatorManagerTestCase(TestCase):
     fixtures = ['states.json', 'parties.json']
 
     def setUp(self):
-        self.manager = LegislatorManager()
+        self.manager = Legislator.objects
         self.oh_district = District.objects.create(state=State.objects.get(pk=36), number=14)
         self.senator = Senator.objects.create(
             first_name='Martin', last_name='Heinrich', state=State.objects.get(pk=32), party=Party.objects.get(pk=2))
