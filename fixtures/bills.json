@@ -1,0 +1,14 @@
+[
+  {
+    "model": "billserve.bill",
+    "pk": 1,
+    "fields": {
+      "bill_url": "https://www.govinfo.gov/bulkdata/BILLSTATUS/115/hr/BILLSTATUS-115hr2260.xml",
+      "type": "HR",
+      "introduction_date": "2017-05-01",
+      "title": "Middle Class CHANCE Act",
+      "congress": 115,
+      "bill_number": 2260
+    }
+  }
+]

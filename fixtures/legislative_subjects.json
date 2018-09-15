@@ -1,0 +1,16 @@
+[
+  {
+    "model": "billserve.legislativesubject",
+    "pk": 1,
+    "fields": {
+      "name": "Education programs funding"
+    }
+  },
+  {
+    "model": "billserve.legislativesubject",
+    "pk": 2,
+    "fields": {
+      "name": "Higher education"
+    }
+  }
+]

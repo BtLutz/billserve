@@ -94,17 +94,18 @@ class Representative(Legislator):
 
 
 class Bill(models.Model):
-    members = ['type', 'congress', 'number']
+    members = ['billType', 'subjects', 'policyArea', 'committees', 'introducedDate', 'actions', 'title', 'billNumber',
+               'summaries', 'sponsors', 'congress', 'originChamber', 'cosponsors', 'relatedBills']
     optional_members = []
     introduction_date_format = '%Y-%m-%d'
     objects = BillManager()
 
     sponsors = models.ManyToManyField(
         'Legislator', verbose_name='sponsors of the given bill', related_name='sponsored_bills')
-    co_sponsors = models.ManyToManyField('Legislator',
-                                         through='CoSponsorship',
-                                         verbose_name='co-sponsors of the given bill',
-                                         related_name='co_sponsored_bills')
+    cosponsors = models.ManyToManyField('Legislator',
+                                        through='CoSponsorship',
+                                        verbose_name='co-sponsors of the given bill',
+                                        related_name='co_sponsored_bills')
     policy_area = models.ForeignKey('PolicyArea', on_delete=models.SET_NULL, null=True, related_name='bills')
     legislative_subjects = models.ManyToManyField('LegislativeSubject', related_name='bills')
     related_bills = models.ManyToManyField('Bill')
@@ -199,7 +200,7 @@ class Action(models.Model):
     objects = ActionManager()
 
     committee = models.ForeignKey('Committee', on_delete=models.CASCADE, null=True)
-    bill = models.ForeignKey('Bill', on_delete=models.CASCADE)
+    bill = models.ForeignKey('Bill', on_delete=models.CASCADE, related_name='actions')
     action_text = models.TextField(verbose_name='text of the action')
     action_type = models.TextField()
     action_date = models.DateField()

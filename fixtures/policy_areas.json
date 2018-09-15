@@ -1,0 +1,9 @@
+[
+  {
+    "model": "billserve.policyarea",
+    "pk": 1,
+    "fields": {
+      "name": "Education"
+    }
+  }
+]

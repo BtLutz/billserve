@@ -15,7 +15,7 @@ class GovinfoClient:
         from billserve.models import Bill
         client = HttpClient()
         response = client.get(url)
-        bill_data = MagicDict(xmltodict.parse(response.data)).cleaned()
+        bill_data = MagicDict(xmltodict.parse(response.data), Bill.members, Bill.optional_members).cleaned()
         bill_data['url'] = url
         return Bill.objects.create_from_dict(bill_data)
 

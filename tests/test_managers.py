@@ -1,6 +1,7 @@
 from django.test import TestCase
 from billserve.managers import *
 from billserve.models import *
+import json
 
 
 class FixNameTestCase(TestCase):
@@ -24,16 +25,15 @@ class FixNameTestCase(TestCase):
 
 
 class LegislatorManagerTestCase(TestCase):
-    fixtures = ['states.json', 'parties.json']
+    fixtures = ['states.json', 'parties.json', 'districts.json']
 
     def setUp(self):
         self.manager = Legislator.objects
-        self.oh_district = District.objects.create(state=State.objects.get(pk=36), number=14)
         self.senator = Senator.objects.create(
             first_name='Martin', last_name='Heinrich', state=State.objects.get(pk=32), party=Party.objects.get(pk=2))
         self.representative = Representative.objects.create(
             first_name='David', last_name='Joyce', state=State.objects.get(pk=36),
-            party=Party.objects.get(pk=3), district=self.oh_district)
+            party=Party.objects.get(pk=3), district=District.objects.get(pk=1))
         self.r_data = {'firstName': 'David',
                        'lastName': 'Joyce',
                        'party': 'R',
@@ -127,9 +127,11 @@ class CommitteeManagerTestCase(TestCase):
 
 
 class PolicyAreaManagerTestCase(TestCase):
+    fixtures = ['policy_areas.json']
+
     def setUp(self):
-        self.data = {'name': 'Energy'}
-        self.policy_area = PolicyArea.objects.create(name='Energy')
+        self.data = {'name': 'Education'}
+        self.policy_area = PolicyArea.objects.get(pk=1)
         self.manager = PolicyArea.objects
 
     def test_get_or_create_from_dict_get(self):
@@ -262,4 +264,27 @@ class CosponsorshipManagerTestCase(TestCase):
 
 
 class BillManagerTestCase(TestCase):
-    pass
+    fixtures = ['states.json', 'parties.json', 'committees.json', 'chambers.json', 'policy_areas.json', 'bills.json',
+                'legislative_subjects.json']
+
+    def setUp(self):
+        with open('billserve/tests/data/BILLSTATUS-115s996.json') as f:
+            self.data = json.loads(f.read())
+        self.manager = Bill.objects
+
+    def test_create_from_dict(self):
+        res = self.manager.create_from_dict(self.data)
+        self.assertEqual(res.sponsors.count(), 1)
+        self.assertEqual(res.cosponsors.count(), 2)
+        self.assertIsNotNone(res.policy_area)
+        self.assertEqual(res.legislative_subjects.count(), 2)
+        self.assertEqual(res.committees.count(), 1)
+        # self.assertEqual(res.related_bills.count(), 1) #  Async task doesn't complete in time for testing
+        self.assertEqual(res.introduction_date, format_date(self.data['introducedDate'], Bill.introduction_date_format))
+        self.assertEqual(res.actions.count(), 1)
+        self.assertEqual(res.bill_summaries.count(), 1)
+
+    def test_create_from_dict_original_cosponsors(self):
+        # TODO: Test to make sure a bill doesn't have two original cosponsors.
+        pass
+

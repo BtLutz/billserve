@@ -1,0 +1,88 @@
+{
+  "url": "https://www.govinfo.gov/bulkdata/BILLSTATUS/115/s/BILLSTATUS-115s996.xml",
+  "billType": "S",
+  "subjects": {
+    "billSubjects": {
+      "legislativeSubjects": [
+        {
+          "name": "Education programs funding"
+        },
+        {
+          "name": "Higher education"
+        }
+      ]
+    }
+  },
+  "policyArea": {
+    "name": "Education"
+  },
+  "committees": {
+    "billCommittees": [
+      {
+        "type": "Standing",
+        "chamber": "Senate",
+        "name": "Health, Education, Labor and Pensions Committee"
+      }
+    ]
+  },
+  "introducedDate": "2017-05-01",
+  "actions": [
+    {
+      "actionDate": "2017-05-01",
+      "committee": {
+        "name": "Health, Education, Labor and Pensions Committee"
+      },
+      "text": "Read twice and referred to the Committee on Health, Education, Labor, and Pensions.",
+      "type": "IntroReferral"
+    }
+  ],
+  "title": "Middle Class CHANCE Act",
+  "billNumber": "996",
+  "summaries": {
+    "billSummaries": [
+      {
+        "text": "Creating Higher Education Affordability Necessary to Compete Economically",
+        "name": "Introduced in Senate",
+        "actionDate": "2017-05-01",
+        "actionDesc": "Introduced in Senate"
+      }
+    ]
+  },
+  "sponsors": [
+    {
+      "party": "D",
+      "firstName": "Martin",
+      "state": "NM",
+      "lastName": "Heinrich",
+      "district": null
+    }
+  ],
+  "congress": "115",
+  "cosponsors": [
+    {
+      "party": "D",
+      "firstName": "Charles",
+      "lastName": "Schumer",
+      "state": "NY",
+      "district": null,
+      "isOriginalCosponsor": "False",
+      "sponsorshipDate": "2017-05-01"
+    },
+    {
+      "party": "R",
+      "firstName": "Ted",
+      "state": "TX",
+      "lastName": "Cruz",
+      "district": null,
+      "isOriginalCosponsor": "True",
+      "sponsorshipDate": "2017-05-01"
+    }
+  ],
+  "relatedBills": [
+    {
+      "number": "2260",
+      "type": "HR",
+      "congress": "115"
+    }
+  ]
+}

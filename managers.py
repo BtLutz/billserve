@@ -71,8 +71,8 @@ class BillManager(Manager):
         url = data['url']
         bill = self.create(bill_url=url)
 
-        bill.type = data['type']
-        bill.bill_number = int(data['number'])
+        bill.type = data['billType']
+        bill.bill_number = int(data['billNumber'])
         bill.title = data['title']
         bill.congress = int(data['congress'])
         bill.introduction_date = format_date(data['introducedDate'], Bill.introduction_date_format)
@@ -80,7 +80,7 @@ class BillManager(Manager):
 
         if 'policyArea' in data:
             policy_area_data = data['policyArea']
-            policy_area, created = PolicyArea.ojects.get_or_create_from_dict(policy_area_data)
+            policy_area, created = PolicyArea.objects.get_or_create_from_dict(policy_area_data)
             bill.policy_area = policy_area
         else:
             bill.policy_area = None
@@ -90,7 +90,7 @@ class BillManager(Manager):
             bill.sponsors.add(sponsor)
 
         for cosponsor_data in data['cosponsors']:
-            Cosponsorship.objects.create_from_dict(cosponsor_data)
+            Cosponsorship.objects.get_or_create_from_dict(cosponsor_data, bill.pk)
 
         for related_data in data['relatedBills']:
             related_bill_type = related_data['type']
@@ -100,18 +100,17 @@ class BillManager(Manager):
             related_bill_url = GovinfoClient.generate_bill_url(
                 related_bill_congress, related_bill_type, related_bill_number)
 
-            RelatedBillChain.execute(related_bill_url, self.pk)
+            RelatedBillChain.execute(related_bill_url, bill.pk)
 
         for bill_summary_data in data['summaries']['billSummaries']:
-            BillSummary.objects.create_from_dict(bill_summary_data, bill)
+            BillSummary.objects.get_or_create_from_dict(bill_summary_data, bill.pk)
 
         for legislative_subject_data in data['subjects']['billSubjects']['legislativeSubjects']:
             legislative_subject, created = LegislativeSubject.objects.get_or_create_from_dict(legislative_subject_data)
             bill.legislative_subjects.add(legislative_subject)
 
         for action_data in data['actions']:
-            action, created = Action.objects.get_or_create_from_dict(action_data)
-            bill.actions.add(action)
+            Action.objects.get_or_create_from_dict(action_data, bill.pk)
 
         for committee_data in data['committees']['billCommittees']:
             committee, created = Committee.objects.get_or_create_from_dict(committee_data)
