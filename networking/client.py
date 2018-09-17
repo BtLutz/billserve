@@ -13,10 +13,19 @@ class GovinfoClient:
         :return: The created bill
         """
         from billserve.models import Bill
+
         client = HttpClient()
         response = client.get(url)
-        bill_data = MagicDict(xmltodict.parse(response.data), Bill.members, Bill.optional_members).cleaned()
+        bill_data_raw = xmltodict.parse(response.data)
+
+        if 'billStatus' not in bill_data_raw or 'bill' not in bill_data_raw['billStatus']:
+            raise KeyError('Malformed XML data found at {url}'.format(url=url))
+
+        bill_data_raw = bill_data_raw['billStatus']['bill']
+
+        bill_data = MagicDict(bill_data_raw, Bill.members, Bill.optional_members).cleaned()
         bill_data['url'] = url
+
         return Bill.objects.create_from_dict(bill_data)
 
     @staticmethod

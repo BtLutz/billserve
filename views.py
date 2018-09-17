@@ -7,18 +7,8 @@ from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from billserve.models import *
 from billserve.serializers import *
-from billserve.enumerations import LegislativeSubjectActivityType
-from billserve.tasks import update
-
-import urllib3
-import certifi
-import json
-import logging
-import xmltodict
-import datetime
-from pytz import utc
+from billserve.tasks import update, rebuild_legislative_subject_support_splits
 
 # Note: Possible ways to make money...
 # 1. Sell wholesale yearly access to congresspeople (i.e. $20K for unlimited queries)
@@ -199,8 +189,17 @@ def update_view(request):
     Updates the database with new data from govinfo.
     :param request: A request object
     """
-
     origin_url = 'https://www.govinfo.gov/bulkdata/BILLSTATUS/115/s/BILLSTATUS-115s119.xml'
     update.delay(origin_url=origin_url)
     return HttpResponse(status=200, content='OK: Update queued.')
+
+
+def rebuild_derived_data_view(request):
+    """
+    Rebuilds legislative subject support splits from current catalogue.
+    :param request: A request object
+    """
+    rebuild_legislative_subject_support_splits.delay()
+    return HttpResponse(status=200, content='OK: Rebuild queued.')
+
 

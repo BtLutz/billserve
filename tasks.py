@@ -2,7 +2,7 @@ from __future__ import absolute_import, unicode_literals
 from celery import shared_task
 
 from billserve.networking.client import GovinfoClient
-from billserve.models import Bill, BillManager
+from billserve.models import Bill, LegislativeSubjectActivity, LegislativeSubjectSupportSplit
 
 
 @shared_task
@@ -12,7 +12,7 @@ def add_related_bill(current_bill_pk, related_bill_pk):
     :param current_bill_pk: The primary key of the first related bill
     :param related_bill_pk: The primary key of the second related bill
     """
-    BillManager.add_related_bill(current_bill_pk, related_bill_pk)
+    Bill.objects.add_related_bill(current_bill_pk, related_bill_pk)
 
 
 @shared_task
@@ -38,3 +38,13 @@ def update(origin_url):
     :param origin_url: The URL to begin our search at
     """
     populate_bill.delay(origin_url)
+
+
+@shared_task
+def rebuild_legislative_subject_support_splits():
+    """
+    Destroys and then rebuilds all the legislative support splits.
+    """
+    LegislativeSubjectSupportSplit.objects.rebuild()
+
+

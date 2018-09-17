@@ -4,6 +4,7 @@ from pytz import utc
 from .networking.client import GovinfoClient
 from .chains import RelatedBillChain
 from polymorphic.managers import PolymorphicManager
+from itertools import chain
 
 
 def fix_name(n):
@@ -35,12 +36,15 @@ class LegislatorManager(PolymorphicManager):
         :return: A tuple containing the object and a boolean indicator telling whether it was created or not
         """
         from .models import Representative, Senator, District, State, Party
-
         first_name = data['firstName']
         last_name = data['lastName']
         state = data['state']
         party = data['party']
-        district = data['district']
+
+        if 'district' in data:
+            district = data['district']
+        else:
+            district = None
 
         first_name, last_name = fix_name(first_name), fix_name(last_name)
 
@@ -89,32 +93,35 @@ class BillManager(Manager):
             sponsor, created = Legislator.objects.get_or_create_from_dict(sponsor_data)
             bill.sponsors.add(sponsor)
 
-        for cosponsor_data in data['cosponsors']:
-            Cosponsorship.objects.get_or_create_from_dict(cosponsor_data, bill.pk)
+        if data['cosponsors']:
+            for cosponsor_data in data['cosponsors']:
+                Cosponsorship.objects.get_or_create_from_dict(cosponsor_data, bill.pk)
 
-        for related_data in data['relatedBills']:
-            related_bill_type = related_data['type']
-            related_bill_congress = related_data['congress']
-            related_bill_number = related_data['number']
+        if data['relatedBills']:
+            for related_data in data['relatedBills']:
+                related_bill_type = related_data['type']
+                related_bill_congress = related_data['congress']
+                related_bill_number = related_data['number']
 
-            related_bill_url = GovinfoClient.generate_bill_url(
-                related_bill_congress, related_bill_type, related_bill_number)
+                related_bill_url = GovinfoClient.generate_bill_url(
+                    related_bill_congress, related_bill_type, related_bill_number)
 
-            RelatedBillChain.execute(related_bill_url, bill.pk)
+                RelatedBillChain.execute(related_bill_url, bill.pk)
 
-        for bill_summary_data in data['summaries']['billSummaries']:
-            BillSummary.objects.get_or_create_from_dict(bill_summary_data, bill.pk)
+        if data['summaries']['billSummaries']:
+            for bill_summary_data in data['summaries']['billSummaries']:
+                BillSummary.objects.get_or_create_from_dict(bill_summary_data, bill.pk)
 
         for legislative_subject_data in data['subjects']['billSubjects']['legislativeSubjects']:
             legislative_subject, created = LegislativeSubject.objects.get_or_create_from_dict(legislative_subject_data)
             bill.legislative_subjects.add(legislative_subject)
 
-        for action_data in data['actions']:
-            Action.objects.get_or_create_from_dict(action_data, bill.pk)
-
         for committee_data in data['committees']['billCommittees']:
             committee, created = Committee.objects.get_or_create_from_dict(committee_data)
             bill.committees.add(committee)
+
+        for action_data in data['actions']:
+            Action.objects.get_or_create_from_dict(action_data, bill.pk)
 
         bill.save()
 
@@ -174,10 +181,10 @@ class CommitteeManager(Manager):
         name = data['name']
         c_type = data['type']
         chamber = data['chamber']
+        system_code = data['systemCode']
+        chamber = Chamber.objects.get(name=chamber)
 
-        chamber, created = Chamber.objects.get_or_create(name=chamber)
-
-        return self.get_or_create(name=name, type=c_type, chamber=chamber)
+        return self.update_or_create(name=name, type=c_type, chamber=chamber, system_code=system_code)
 
 
 class PolicyAreaManager(Manager):
@@ -213,14 +220,23 @@ class ActionManager(Manager):
         """
         from .models import Action, Committee, Bill
 
-        committee_name = data['committee']['name']
+        if 'committee' in data and data['committee']:
+            committee_name = data['committee']['name']
+            committee_system_code = data['committee']['systemCode']
+        else:
+            committee_name = None
+
         text = data['text']
         atype = data['type']
         action_date_string = data['actionDate']
 
         date = format_date(action_date_string, Action.action_date_format)
 
-        committee, created = Committee.objects.get_or_create(name=committee_name)
+        if committee_name and committee_system_code:
+            committee = Committee.objects.get(system_code=committee_system_code)
+        else:
+            committee = None
+
         bill = Bill.objects.get(pk=bill_pk)
 
         return self.get_or_create(committee=committee, bill=bill, action_text=text, action_type=atype, action_date=date)
@@ -251,3 +267,30 @@ class CosponsorshipManager(Manager):
 
         return self.get_or_create(legislator=legislator, bill=bill, is_original_cosponsor=is_original_cosponsor,
                                   cosponsorship_date=cosponsorship_date)
+
+
+class LegislativeSubjectSupportSplitManager(Manager):
+    def rebuild(self):
+        """
+        Destroys and then rebuilds all legislative subject support split objects.
+        """
+        from .models import LegislativeSubject, LegislativeSubjectSupportSplit
+
+        independent_party_pk = 1
+        democratic_party_pk = 2
+        republican_party_pk = 3
+
+        self.all().delete()
+
+        for legislative_subject in LegislativeSubject.objects.all():
+            legislative_subject_support_split = LegislativeSubjectSupportSplit(legislative_subject=legislative_subject)
+            for bill in legislative_subject.bills.all():
+                legislators = list(chain(bill.sponsors.all(), bill.cosponsors.all()))
+                for legislator in legislators:
+                    if legislator.party.pk == independent_party_pk:
+                        legislative_subject_support_split.white_count += 1
+                    elif legislator.party.pk == democratic_party_pk:
+                        legislative_subject_support_split.blue_count += 1
+                    elif legislator.party.pk == republican_party_pk:
+                        legislative_subject_support_split.red_count += 1
+            legislative_subject_support_split.save()

@@ -22,6 +22,7 @@ class MagicDict(OrderedDict):
         """
         keys = set(self.keys())
         required_keys = set(required_keys)
+
         if not required_keys <= keys:
             missing_keys = required_keys - keys
             raise KeyError('Missing required keys: ' + str(missing_keys))

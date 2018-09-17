@@ -65,26 +65,26 @@ class RepresentativeShortSerializer(serializers.HyperlinkedModelSerializer):
 
 class SenatorSerializer(serializers.ModelSerializer):
     sponsored_bills = BillShortSerializer(many=True)
-    co_sponsored_bills = BillShortSerializer(many=True)
+    cosponsored_bills = BillShortSerializer(many=True)
     state = StateShortSerializer()
     party = PartyShortSerializer()
 
     class Meta:
         model = Senator
         fields = ('party', 'legislative_body', 'state', 'committees', 'first_name', 'last_name',
-                  'co_sponsored_bills', 'sponsored_bills')
+                  'cosponsored_bills', 'sponsored_bills')
 
 
 class RepresentativeSerializer(serializers.ModelSerializer):
     sponsored_bills = BillShortSerializer(many=True)
-    co_sponsored_bills = BillShortSerializer(many=True)
+    cosponsored_bills = BillShortSerializer(many=True)
     state = StateShortSerializer()
     party = PartyShortSerializer()
 
     class Meta:
         model = Representative
         fields = ('party', 'legislative_body', 'state', 'committees', 'first_name', 'last_name', 'district',
-                  'sponsored_bills', 'co_sponsored_bills')
+                  'sponsored_bills', 'cosponsored_bills')
 
 
 class PartySerializer(serializers.ModelSerializer):
@@ -213,7 +213,7 @@ class BillSummarySerializer(serializers.ModelSerializer):
 class BillSerializer(serializers.ModelSerializer):
     related_bills = BillShortSerializer(many=True)
     sponsors = LegislatorListSerializer(many=True)
-    co_sponsors = LegislatorListSerializer(many=True)
+    cosponsors = LegislatorListSerializer(many=True)
     legislative_subjects = LegislativeSubjectShortSerializer(many=True)
     policy_area = PolicyAreaShortSerializer()
     bill_summaries = BillSummarySerializer(many=True)
@@ -221,7 +221,7 @@ class BillSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Bill
-        fields = ('sponsors', 'co_sponsors', 'policy_area', 'legislative_subjects', 'related_bills', 'committees',
+        fields = ('sponsors', 'cosponsors', 'policy_area', 'legislative_subjects', 'related_bills', 'committees',
                   'originating_body', 'support_splits', 'title', 'bill_summaries', 'introduction_date', 'last_modified',
                   'bill_number', 'congress', 'type', 'cbo_cost_estimate', 'url', 'bill_url')
         depth = 1
@@ -275,7 +275,7 @@ class BillSerializer(serializers.ModelSerializer):
 
             return SupportSplit(red_count=red_count, blue_count=blue_count, white_count=white_count)
 
-        cosponsorship_split = generate_split(obj.co_sponsors.all())
+        cosponsorship_split = generate_split(obj.cosponsors.all())
         sponsorship_split = generate_split(obj.sponsors.all())
 
         return {'cosponsorship_split': cosponsorship_split.as_dict(), 'sponsorship_split': sponsorship_split.as_dict()}

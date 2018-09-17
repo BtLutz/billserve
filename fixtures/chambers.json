@@ -11,7 +11,7 @@
     "model": "billserve.chamber",
     "pk": 2,
     "fields": {
-      "name": "House of Representatives",
+      "name": "House",
       "abbreviation": "HR"
     }
   }
