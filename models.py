@@ -192,19 +192,28 @@ class LegislativeSubject(Model):
         sponsors_count = \
             Sum(
                 Case(
-                    When(sponsored_bills__legislative_subjects__pk=self.pk, then=1)
+                    When(sponsored_bills__legislative_subjects__pk=self.pk, then=1),
+                    output_field=IntegerField()
                 )
             )
 
         cosponsors_count = \
             Sum(
                 Case(
-                    When(cosponsored_bills__legislative_subjects__pk=self.pk, then=1)
+                    When(cosponsored_bills__legislative_subjects__pk=self.pk, then=1),
+                    output_field=IntegerField()
                 )
             )
 
-        top_sponsors = Legislator.objects.annotate(count=sponsors_count).order_by('-count')[:5]
-        top_cosponsors = Legislator.objects.annotate(count=cosponsors_count).order_by('-count')[:5]
+        top_sponsors = Legislator.objects.annotate(count=sponsors_count)
+        top_sponsors = top_sponsors.filter(count__isnull=False)
+        top_sponsors = top_sponsors.order_by('-count')
+        top_sponsors = top_sponsors[:5]
+
+        top_cosponsors = Legislator.objects.annotate(count=cosponsors_count)
+        top_cosponsors = top_cosponsors.filter(count__isnull=False)
+        top_cosponsors = top_cosponsors.order_by('-count')
+        top_cosponsors = top_cosponsors[:5]
 
         return top_sponsors, top_cosponsors
 

@@ -177,23 +177,31 @@ class LegislativeSubjectSerializer(serializers.ModelSerializer):
         :return: A dictionary with two lists containing short summaries
         for the top five sponsors and cosponsors, respectively.
         """
-        def json_list_for(activities):
-            """
-            Convenience method for converting raw legislator instances into their serialized format.
-            :param activities: The list of activities
-            :return: A dictionary that's what we'll we want to see in the API
-            """
-            return [{'count': lsa.activity_count,
-                     'legislator': LegislatorListSerializer(instance=lsa.legislator, context=self.context).data
-                     } for lsa in activities]
 
-        legislative_subject_sponsorships = obj.activities.filter(
-            activity_type=LegislativeSubjectActivityType.sponsorship.value).order_by('-activity_count')[:5]
-        legislative_subject_cosponsorships = obj.activities.filter(
-            activity_type=LegislativeSubjectActivityType.cosponsorship.value).order_by('-activity_count')[:5]
+        top_sponsors, top_cosponsors = obj.top_legislators()
 
-        return {'top_cosponsors': json_list_for(legislative_subject_cosponsorships),
-                'top_sponsors': json_list_for(legislative_subject_sponsorships)}
+        return {
+            'top_sponsors': self.json_list_for(top_sponsors),
+            'top_cosponsors': self.json_list_for(top_cosponsors)
+        }
+
+    def json_list_for(self, legislators):
+        """
+        Convenience method for converting raw legislator instances into their serialized format.
+        :param legislators: The list of top legislators
+        :return: A dictionary that's what we'll we want to see in the API
+        """
+        res = []
+
+        for legislator in legislators:
+            serialized_legislator = LegislatorListSerializer(instance=legislator, context=self.context)
+            data = {
+                'legislator': serialized_legislator.data,
+                'count': legislator.count
+            }
+            res.append(data)
+
+        return res
 
 
 class PolicyAreaSerializer(serializers.ModelSerializer):
