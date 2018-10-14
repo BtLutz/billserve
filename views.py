@@ -176,14 +176,15 @@ def update_view(request):
     :param request: A request object
     :return An HTTP response stating that the update has been queued
     """
-    origin_url = 'https://www.govinfo.gov/bulkdata/BILLSTATUS/115/s/BILLSTATUS-115s119.xml'
-    update.delay(origin_url)
+    origin_url_s = 'https://www.govinfo.gov/bulkdata/json/BILLSTATUS/115/s'
+    origin_url_hr = 'https://www.govinfo.gov/bulkdata/json/BILLSTATUS/115/hr'
+    update.delay(origin_url_s), update.delay(origin_url_hr)
     return HttpResponse(status=200, content='OK: Update queued.')
 
 
 def rebuild_view(request):
     """
-    Rebuils all legislative subject support splits based on data in the current database instance.
+    Rebuilds all legislative subject support splits based on data in the current database instance.
     :param request: A request object
     :return: An HTTP response stating that the rebuild has been queued
     """

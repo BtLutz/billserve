@@ -1,9 +1,11 @@
 from .http import HttpClient
 import xmltodict
+import json
 from .models.MagicDict import MagicDict
 
 
 class GovinfoClient:
+    http = HttpClient()
 
     @staticmethod
     def create_bill_from_url(url):
@@ -13,9 +15,7 @@ class GovinfoClient:
         :return: The created bill
         """
         from billserve.models import Bill
-
-        client = HttpClient()
-        response = client.get(url)
+        response = GovinfoClient.http.get(url)
         bill_data_raw = xmltodict.parse(response.data)
 
         if 'billStatus' not in bill_data_raw or 'bill' not in bill_data_raw['billStatus']:
@@ -29,7 +29,7 @@ class GovinfoClient:
         return Bill.objects.create_from_dict(bill_data)
 
     @staticmethod
-    def generate_bill_url(congress, bill_type, number):
+    def create_bill_url(congress, bill_type, number):
         """
         Generates a govinfo bill URL with the required components.
         :param congress: The congress of the bill (115, 114, 113, etc.)
@@ -40,4 +40,9 @@ class GovinfoClient:
         return \
             'https://www.govinfo.gov/bulkdata/BILLSTATUS/{congress}/{type}/BILLSTATUS-{congress}{type}{number}.xml' \
             .format(congress=congress, type=bill_type.lower(), number=number)
+
+    @staticmethod
+    def create_bill_url_list_from_origin(origin_url):
+        response = json.loads(GovinfoClient.http.get(origin_url).data)
+        return [result['link'] for result in response['files']]
 

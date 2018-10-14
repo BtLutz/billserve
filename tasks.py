@@ -40,7 +40,9 @@ def update(origin_url):
     possible bill repositories and see if there are any new bills to grab.
     :param origin_url: The URL to begin our search at
     """
-    populate_bill.delay(origin_url)
+    from .models import Bill
+
+    Bill.objects.bulk_create_bills_from_origin(origin_url)
 
 
 @shared_task

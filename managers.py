@@ -103,7 +103,7 @@ class BillManager(Manager):
                 related_bill_congress = related_data['congress']
                 related_bill_number = related_data['number']
 
-                related_bill_url = GovinfoClient.generate_bill_url(
+                related_bill_url = GovinfoClient.create_bill_url(
                     related_bill_congress, related_bill_type, related_bill_number)
 
                 RelatedBillChain.execute(related_bill_url, bill.pk)
@@ -146,6 +146,14 @@ class BillManager(Manager):
 
         bill.related_bills.add(related_bill)
         bill.save()
+
+    @staticmethod
+    def bulk_create_bills_from_origin(origin_url):
+        from .tasks import populate_bill
+
+        bill_urls = GovinfoClient.create_bill_url_list_from_origin(origin_url)
+        for bill_url in bill_urls:
+            populate_bill.delay(bill_url)
 
 
 class BillSummaryManager(Manager):
@@ -196,7 +204,10 @@ class PolicyAreaManager(Manager):
         :param data: A dictionary containing a serialized policy area instance
         :return: A tuple containing the policy area and a boolean indicator of whether it was created
         """
-        name = data['name']
+        try:
+            name = data['name']
+        except TypeError:
+            return None
         return self.get_or_create(name=name)
 
 
@@ -207,8 +218,10 @@ class LegislativeSubjectManager(Manager):
         :param data: A dictionary containing the serialized legislative subject instance
         :return: A tuple containing the legislative subject and a boolean indicator specifying whether it was created
         """
-        name = data['name']
-
+        try:
+            name = data['name']
+        except TypeError:
+            return None
         return self.get_or_create(name=name)
 
 
