@@ -9,7 +9,7 @@ from . import views
 urlpatterns = format_suffix_patterns([
     path('', views.api_root),
     path('update', views.update_view, name='update'),
-    path('rebuild-derived-data', views.rebuild_derived_data_view, name='rebuild-derived-data'),
+    path('rebuild', views.rebuild_view, name='rebuild'),
     re_path(r'^parties/$', views.PartyList.as_view(), name='party-list'),
     re_path(r'^states/$', views.StateList.as_view(), name='state-list'),
     re_path(r'^districts/$', views.DistrictList.as_view(), name='district-list'),

@@ -8,31 +8,17 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from billserve.serializers import *
-from billserve.tasks import update, rebuild_legislative_subject_support_splits
-
-# Note: Possible ways to make money...
-# 1. Sell wholesale yearly access to congresspeople (i.e. $20K for unlimited queries)
-# 2. Sell per-unit queries (i.e. $0.05 per record accessed / $5 per query / etc.)
-
-# Process:
-# 1. Roll Call, Politico, Glenn Kessler @ WP would know if something like this has already been done
-# 2. Voting records
-
-# Features:
-# 1. Legislator reference page. Fancy vote counter
-
-# Important references:
-# 1. House of Representative voting example: http://clerk.house.gov/evs/2018/roll297.xml
-# 2. Senate voting example: https://www.senate.gov/legislative/LIS/roll_call_votes/vote1141/vote_114_1_00067.xml
-# It seems like the House of Representatives votes on a lot more bills than the senate...
-# TODO: Implement API tokens. A special token should be allocated to allow access to the protected /update endpoint.
-# Everyone else should get generic tokens that allow access to the API methods.
-# TODO: Got an exception when parsing the 987 bill. The exception happened when I tried to save a char field that was
-# longer than 50 characters. It happened when I was parsing live on Heroku.
+from billserve.tasks import update, rebuild
 
 
 @api_view(['GET'])
 def api_root(request, format=None):
+    """
+    Returns URLs to all child API views.
+    :param request: A request object
+    :param format: Format expected by the request. E.G. JSON, XML, etc.
+    :return: A response containing URLs to each child API view
+    """
     return Response({
         'parties': reverse('party-list', request=request, format=format),
         # 'legislativeBodies': reverse('legislative-bodies-list', request=request, format=format),
@@ -188,18 +174,18 @@ def update_view(request):
     """
     Updates the database with new data from govinfo.
     :param request: A request object
+    :return An HTTP response stating that the update has been queued
     """
     origin_url = 'https://www.govinfo.gov/bulkdata/BILLSTATUS/115/s/BILLSTATUS-115s119.xml'
-    update.delay(origin_url=origin_url)
+    update.delay(origin_url)
     return HttpResponse(status=200, content='OK: Update queued.')
 
 
-def rebuild_derived_data_view(request):
+def rebuild_view(request):
     """
-    Rebuilds legislative subject support splits from current catalogue.
+    Rebuils all legislative subject support splits based on data in the current database instance.
     :param request: A request object
+    :return: An HTTP response stating that the rebuild has been queued
     """
-    rebuild_legislative_subject_support_splits.delay()
+    rebuild.delay()
     return HttpResponse(status=200, content='OK: Rebuild queued.')
-
-

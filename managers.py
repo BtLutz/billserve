@@ -112,16 +112,18 @@ class BillManager(Manager):
             for bill_summary_data in data['summaries']['billSummaries']:
                 BillSummary.objects.get_or_create_from_dict(bill_summary_data, bill.pk)
 
-        for legislative_subject_data in data['subjects']['billSubjects']['legislativeSubjects']:
-            legislative_subject, created = LegislativeSubject.objects.get_or_create_from_dict(legislative_subject_data)
-            bill.legislative_subjects.add(legislative_subject)
+        if data['subjects']['billSubjects']['legislativeSubjects']:
+            for legislative_subject_data in data['subjects']['billSubjects']['legislativeSubjects']:
+                legislative_subject, created = LegislativeSubject.objects.get_or_create_from_dict(
+                    legislative_subject_data)
+                bill.legislative_subjects.add(legislative_subject)
 
         for committee_data in data['committees']['billCommittees']:
             committee, created = Committee.objects.get_or_create_from_dict(committee_data)
             bill.committees.add(committee)
 
-        for action_data in data['actions']:
-            Action.objects.get_or_create_from_dict(action_data, bill.pk)
+        # for action_data in data['actions']:
+        #     Action.objects.get_or_create_from_dict(action_data, bill.pk)
 
         bill.save()
 

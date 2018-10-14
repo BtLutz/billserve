@@ -2,7 +2,6 @@ from __future__ import absolute_import, unicode_literals
 from celery import shared_task
 
 from billserve.networking.client import GovinfoClient
-from billserve.models import Bill, LegislativeSubjectActivity, LegislativeSubjectSupportSplit
 
 
 @shared_task
@@ -12,6 +11,8 @@ def add_related_bill(current_bill_pk, related_bill_pk):
     :param current_bill_pk: The primary key of the first related bill
     :param related_bill_pk: The primary key of the second related bill
     """
+    from .models import Bill
+
     Bill.objects.add_related_bill(current_bill_pk, related_bill_pk)
 
 
@@ -22,6 +23,8 @@ def populate_bill(url):
     :param url: A URL pointing towards a valid GovInfo endpoint
     :return: The primary key of the bill we've either gotten or created
     """
+    from .models import Bill
+
     try:
         bill = Bill.objects.get(bill_url=url)
     except Bill.DoesNotExist:
@@ -41,10 +44,12 @@ def update(origin_url):
 
 
 @shared_task
-def rebuild_legislative_subject_support_splits():
+def rebuild():
     """
     Destroys and then rebuilds all the legislative support splits.
     """
+    from .models import LegislativeSubjectSupportSplit
+
     LegislativeSubjectSupportSplit.objects.rebuild()
 
 
