@@ -126,8 +126,17 @@ class BillList(generics.ListAPIView):
     """
     List all bills.
     """
-    queryset = Bill.objects.all()
     serializer_class = BillShortSerializer
+
+    def get_queryset(self):
+        """
+        Optionally restricts the returned bills to those whose title contains a string, such as 'CFPB'
+        """
+        queryset = Bill.objects.all()
+        filter_string = self.request.query_params.get('title', None)
+        if filter_string is not None:
+            queryset = queryset.filter(title__icontains=filter_string)
+        return queryset
 
 
 class BillDetail(generics.RetrieveAPIView):
